@@ -1,0 +1,470 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.1.0)'
+        required: false
+        default: ''
+
+env:
+  QT_VERSION: '6.5.3'
+  CMAKE_VERSION: '3.27.0'
+  VCPKG_COMMIT: '2024.01.12'
+  BUILD_TYPE: Release
+
+jobs:
+  # ===========================================
+  # Windows AMD64 Build
+  # ===========================================
+  build-windows-amd64:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.3
+    
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: ${{ env.QT_VERSION }}
+        arch: win64_msvc2019_64
+        modules: 'qtnetworkauth'
+        cache: true
+    
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+    
+    - name: Install dependencies
+      run: |
+        vcpkg install protobuf:x64-windows
+        vcpkg integrate install
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build -G "Visual Studio 17 2022" -A x64 `
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+          -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" `
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    
+    - name: Build
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} -j4
+    
+    - name: Run tests
+      run: |
+        cd build
+        ctest -C ${{ env.BUILD_TYPE }} --output-on-failure
+    
+    - name: Package
+      run: |
+        $VERSION = "${{ github.event.inputs.version }}"
+        if ([string]::IsNullOrEmpty($VERSION)) {
+          $VERSION = "${{ github.ref_name }}".TrimStart('v')
+        }
+        
+        $PACKAGE_NAME = "FlyKylin-v$VERSION-windows-amd64"
+        $PACKAGE_DIR = "package/$PACKAGE_NAME"
+        
+        New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
+        Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        
+        # Deploy Qt dependencies
+        & "${{ env.Qt6_DIR }}/bin/windeployqt.exe" `
+          --release --no-translations `
+          "$PACKAGE_DIR/FlyKylin.exe"
+        
+        # Copy documentation
+        Copy-Item "README.md" -Destination "$PACKAGE_DIR/"
+        Copy-Item "LICENSE" -Destination "$PACKAGE_DIR/" -ErrorAction SilentlyContinue
+        
+        # Create archive
+        Compress-Archive -Path "$PACKAGE_DIR/*" `
+          -DestinationPath "package/$PACKAGE_NAME.zip" -Force
+        
+        # Calculate SHA256
+        $hash = Get-FileHash "package/$PACKAGE_NAME.zip" -Algorithm SHA256
+        $hash.Hash | Out-File -FilePath "package/$PACKAGE_NAME.zip.sha256" -Encoding ASCII
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: FlyKylin-windows-amd64
+        path: package/*.zip*
+        retention-days: 30
+
+  # ===========================================
+  # Windows ARM64 Build
+  # ===========================================
+  build-windows-arm64:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.3
+    
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: ${{ env.QT_VERSION }}
+        arch: win64_msvc2019_arm64
+        modules: 'qtnetworkauth'
+        cache: true
+    
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+    
+    - name: Install dependencies
+      run: |
+        vcpkg install protobuf:arm64-windows
+        vcpkg integrate install
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build -G "Visual Studio 17 2022" -A ARM64 `
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+          -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" `
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    
+    - name: Build
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} -j4
+    
+    # Note: Cannot run tests on ARM64 build machine
+    - name: Package
+      run: |
+        $VERSION = "${{ github.event.inputs.version }}"
+        if ([string]::IsNullOrEmpty($VERSION)) {
+          $VERSION = "${{ github.ref_name }}".TrimStart('v')
+        }
+        
+        $PACKAGE_NAME = "FlyKylin-v$VERSION-windows-arm64"
+        $PACKAGE_DIR = "package/$PACKAGE_NAME"
+        
+        New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
+        Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        
+        # Deploy Qt dependencies
+        & "${{ env.Qt6_DIR }}/bin/windeployqt.exe" `
+          --release --no-translations `
+          "$PACKAGE_DIR/FlyKylin.exe"
+        
+        # Copy documentation
+        Copy-Item "README.md" -Destination "$PACKAGE_DIR/"
+        Copy-Item "LICENSE" -Destination "$PACKAGE_DIR/" -ErrorAction SilentlyContinue
+        
+        # Create archive
+        Compress-Archive -Path "$PACKAGE_DIR/*" `
+          -DestinationPath "package/$PACKAGE_NAME.zip" -Force
+        
+        # Calculate SHA256
+        $hash = Get-FileHash "package/$PACKAGE_NAME.zip" -Algorithm SHA256
+        $hash.Hash | Out-File -FilePath "package/$PACKAGE_NAME.zip.sha256" -Encoding ASCII
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: FlyKylin-windows-arm64
+        path: package/*.zip*
+        retention-days: 30
+
+  # ===========================================
+  # Linux AMD64 Build
+  # ===========================================
+  build-linux-amd64:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build \
+          libgl1-mesa-dev libglu1-mesa-dev \
+          libxkbcommon-dev libxcb-*-dev \
+          libfontconfig1-dev libfreetype6-dev \
+          libdbus-1-dev libssl-dev
+    
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: ${{ env.QT_VERSION }}
+        arch: gcc_64
+        modules: 'qtnetworkauth'
+        cache: true
+    
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+    
+    - name: Install dependencies
+      run: |
+        vcpkg install protobuf:x64-linux
+        vcpkg integrate install
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" \
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    
+    - name: Build
+      run: cmake --build build -j$(nproc)
+    
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure
+    
+    - name: Package
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if [ -z "$VERSION" ]; then
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+        fi
+        
+        PACKAGE_NAME="FlyKylin-v${VERSION}-linux-amd64"
+        PACKAGE_DIR="package/${PACKAGE_NAME}"
+        
+        mkdir -p "$PACKAGE_DIR"
+        cp build/bin/FlyKylin "$PACKAGE_DIR/"
+        
+        # Copy Qt libraries
+        mkdir -p "$PACKAGE_DIR/lib"
+        cp -P ${{ env.Qt6_DIR }}/lib/libQt6*.so* "$PACKAGE_DIR/lib/" || true
+        
+        # Create launcher script
+        cat > "$PACKAGE_DIR/FlyKylin.sh" << 'EOF'
+        #!/bin/bash
+        DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
+        exec "$DIR/FlyKylin" "$@"
+        EOF
+        chmod +x "$PACKAGE_DIR/FlyKylin.sh"
+        
+        # Copy documentation
+        cp README.md "$PACKAGE_DIR/"
+        cp LICENSE "$PACKAGE_DIR/" 2>/dev/null || true
+        
+        # Create archive
+        cd package
+        tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+        sha256sum "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.tar.gz.sha256"
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: FlyKylin-linux-amd64
+        path: package/*.tar.gz*
+        retention-days: 30
+
+  # ===========================================
+  # Linux ARM64 Build (RK3566 compatible)
+  # ===========================================
+  build-linux-arm64:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Setup QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+    
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build in ARM64 container
+      run: |
+        docker run --rm --platform linux/arm64 \
+          -v ${{ github.workspace }}:/workspace \
+          -w /workspace \
+          ubuntu:22.04 bash -c "
+            apt-get update && \
+            apt-get install -y \
+              build-essential cmake ninja-build \
+              libgl1-mesa-dev libglu1-mesa-dev \
+              libxkbcommon-dev libxcb-*-dev \
+              libfontconfig1-dev libfreetype6-dev \
+              libdbus-1-dev libssl-dev \
+              wget git ca-certificates && \
+            
+            # Install Qt (download pre-built or build from source)
+            # For now, we'll use system Qt or download pre-compiled
+            apt-get install -y qt6-base-dev qt6-base-dev-tools && \
+            
+            # Install vcpkg
+            git clone https://github.com/Microsoft/vcpkg.git && \
+            cd vcpkg && \
+            git checkout ${{ env.VCPKG_COMMIT }} && \
+            ./bootstrap-vcpkg.sh && \
+            ./vcpkg install protobuf:arm64-linux && \
+            cd .. && \
+            
+            # Build
+            cmake -B build -G Ninja \
+              -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+              -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake && \
+            cmake --build build -j\$(nproc) && \
+            
+            # Package
+            VERSION='${{ github.event.inputs.version }}' && \
+            [ -z \"\$VERSION\" ] && VERSION='${{ github.ref_name }}' && \
+            VERSION=\${VERSION#v} && \
+            
+            PACKAGE_NAME=\"FlyKylin-v\${VERSION}-linux-arm64\" && \
+            PACKAGE_DIR=\"package/\${PACKAGE_NAME}\" && \
+            
+            mkdir -p \"\$PACKAGE_DIR\" && \
+            cp build/bin/FlyKylin \"\$PACKAGE_DIR/\" && \
+            
+            # Create launcher script
+            cat > \"\$PACKAGE_DIR/FlyKylin.sh\" << 'EEOF'
+        #!/bin/bash
+        DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"
+        export LD_LIBRARY_PATH=\"\$DIR/lib:\$LD_LIBRARY_PATH\"
+        exec \"\$DIR/FlyKylin\" \"\$@\"
+        EEOF
+            chmod +x \"\$PACKAGE_DIR/FlyKylin.sh\" && \
+            
+            cp README.md \"\$PACKAGE_DIR/\" && \
+            cp LICENSE \"\$PACKAGE_DIR/\" 2>/dev/null || true && \
+            
+            cd package && \
+            tar -czf \"\${PACKAGE_NAME}.tar.gz\" \"\${PACKAGE_NAME}\" && \
+            sha256sum \"\${PACKAGE_NAME}.tar.gz\" > \"\${PACKAGE_NAME}.tar.gz.sha256\"
+          "
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: FlyKylin-linux-arm64
+        path: package/*.tar.gz*
+        retention-days: 30
+
+  # ===========================================
+  # Create GitHub Release
+  # ===========================================
+  create-release:
+    needs: [build-windows-amd64, build-windows-arm64, build-linux-amd64, build-linux-arm64]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Prepare release assets
+      run: |
+        mkdir -p release-assets
+        find artifacts -type f -name "*.zip" -o -name "*.tar.gz" -o -name "*.sha256" | \
+          xargs -I {} cp {} release-assets/
+        
+        # List all files
+        ls -lh release-assets/
+    
+    - name: Generate release notes
+      run: |
+        VERSION="${{ github.ref_name }}"
+        
+        cat > RELEASE_NOTES.md << EOF
+        # FlyKylin ${VERSION} Release
+        
+        **Release Date**: $(date +%Y-%m-%d)
+        
+        ## 🎯 Highlights
+        
+        - Cross-platform P2P communication
+        - UDP node discovery
+        - Modern Qt 6 based UI
+        
+        ## 📦 Downloads
+        
+        ### Windows
+        - **AMD64 (x64)**: FlyKylin-${VERSION}-windows-amd64.zip
+        - **ARM64**: FlyKylin-${VERSION}-windows-arm64.zip
+        
+        ### Linux
+        - **AMD64 (x64)**: FlyKylin-${VERSION}-linux-amd64.tar.gz
+        - **ARM64 (RK3566)**: FlyKylin-${VERSION}-linux-arm64.tar.gz
+        
+        ## 🚀 System Requirements
+        
+        ### Windows
+        - Windows 10/11 (AMD64 or ARM64)
+        - Qt 6.5+
+        - 4GB RAM minimum
+        
+        ### Linux
+        - Ubuntu 22.04+ or compatible
+        - Qt 6.5+
+        - 4GB RAM minimum
+        
+        ## ✅ Verification
+        
+        Verify downloads using SHA256 checksums provided.
+        
+        ## 📖 Documentation
+        
+        See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for usage instructions.
+        
+        ## 🐛 Known Issues
+        
+        See [GitHub Issues](https://github.com/${{ github.repository }}/issues)
+        
+        ---
+        
+        **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.0.0...${VERSION}
+        EOF
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: RELEASE_NOTES.md
+        files: release-assets/*
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
