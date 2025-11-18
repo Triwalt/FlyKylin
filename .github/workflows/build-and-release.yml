@@ -332,68 +332,67 @@ jobs:
         docker run --rm --platform linux/arm64 \
           -v ${{ github.workspace }}:/workspace \
           -w /workspace \
-          ubuntu:22.04 bash -c "
-            set -euo pipefail
+          -e VCPKG_COMMIT=${{ env.VCPKG_COMMIT }} \
+          -e BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -e VERSION=${{ github.event.inputs.version }} \
+          -e REF_NAME=${{ github.ref_name }} \
+          ubuntu:22.04 bash -c '
+            set -e
             export DEBIAN_FRONTEND=noninteractive
-            WORKSPACE=/workspace
-            PACKAGE_ROOT=\"$WORKSPACE/package\"
-            mkdir -p \"$PACKAGE_ROOT\"
             
-            apt-get update && \
+            echo "==== Installing system dependencies ===="
+            apt-get update
             apt-get install -y \
               build-essential cmake ninja-build \
               libgl1-mesa-dev libglu1-mesa-dev \
               libxkbcommon-dev libxcb-*-dev \
               libfontconfig1-dev libfreetype6-dev \
               libdbus-1-dev libssl-dev \
-              wget git ca-certificates && \
+              wget git ca-certificates \
+              qt6-base-dev qt6-base-dev-tools
             
-            # Install Qt (download pre-built or build from source)
-            # For now, we'll use system Qt or download pre-compiled
-            apt-get install -y qt6-base-dev qt6-base-dev-tools && \
+            echo "==== Setting up vcpkg ===="
+            git config --global --add safe.directory /workspace/vcpkg
+            git clone https://github.com/Microsoft/vcpkg.git /workspace/vcpkg
+            cd /workspace/vcpkg
+            git checkout ${VCPKG_COMMIT}
+            ./bootstrap-vcpkg.sh
             
-            # Install vcpkg
-            git clone https://github.com/Microsoft/vcpkg.git \"$WORKSPACE/vcpkg\" && \
-            git config --global --add safe.directory /workspace/vcpkg && \
-            cd /workspace/vcpkg && \
-            git checkout ${{ env.VCPKG_COMMIT }} && \
-            ./bootstrap-vcpkg.sh && \
-            ./vcpkg install protobuf:arm64-linux && \
-            cd $WORKSPACE && \
-            
-            # Build
+            echo "==== Building project ===="
+            cd /workspace
             cmake -B build -G Ninja \
-              -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-              -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake && \
-            cmake --build build -j\$(nproc) && \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DCMAKE_TOOLCHAIN_FILE=/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake
+            cmake --build build -j$(nproc)
             
-            # Package
-            VERSION='${{ github.event.inputs.version }}' && \
-            [ -z \"\$VERSION\" ] && VERSION='${{ github.ref_name }}' && \
-            VERSION=\${VERSION#v} && \
+            echo "==== Packaging ===="
+            VERSION_TAG="${VERSION}"
+            if [ -z "${VERSION_TAG}" ]; then
+              VERSION_TAG="${REF_NAME}"
+            fi
+            VERSION_TAG="${VERSION_TAG#v}"
             
-            PACKAGE_NAME=\"FlyKylin-v\${VERSION}-linux-arm64\" && \
-            PACKAGE_DIR=\"$PACKAGE_ROOT/\${PACKAGE_NAME}\" && \
+            PACKAGE_NAME="FlyKylin-v${VERSION_TAG}-linux-arm64"
+            PACKAGE_DIR="/workspace/package/${PACKAGE_NAME}"
             
-            mkdir -p \"\$PACKAGE_DIR\" && \
-            cp build/bin/FlyKylin \"\$PACKAGE_DIR/\" && \
+            mkdir -p "${PACKAGE_DIR}"
+            cp build/bin/FlyKylin "${PACKAGE_DIR}/"
             
-            # Create launcher script
-            cat > \"\$PACKAGE_DIR/FlyKylin.sh\" << 'EEOF'
-        #!/bin/bash
-        DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"
-        export LD_LIBRARY_PATH=\"\$DIR/lib:\$LD_LIBRARY_PATH\"
-        exec \"\$DIR/FlyKylin\" \"\$@\"
-        EEOF
-            chmod +x \"\$PACKAGE_DIR/FlyKylin.sh\" && \
+            echo "#!/bin/bash" > "${PACKAGE_DIR}/FlyKylin.sh"
+            echo "DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"" >> "${PACKAGE_DIR}/FlyKylin.sh"
+            echo "export LD_LIBRARY_PATH=\"\${DIR}/lib:\${LD_LIBRARY_PATH}\"" >> "${PACKAGE_DIR}/FlyKylin.sh"
+            echo "exec \"\${DIR}/FlyKylin\" \"\$@\"" >> "${PACKAGE_DIR}/FlyKylin.sh"
+            chmod +x "${PACKAGE_DIR}/FlyKylin.sh"
             
-            cp README.md \"\$PACKAGE_DIR/\" && \
-            cp LICENSE \"\$PACKAGE_DIR/\" 2>/dev/null || true && \
+            cp README.md "${PACKAGE_DIR}/" || true
+            cp LICENSE "${PACKAGE_DIR}/" || true
             
-            cd \"$PACKAGE_ROOT\" && \
-            tar -czf \"\${PACKAGE_NAME}.tar.gz\" \"\${PACKAGE_NAME}\" && \
-            sha256sum \"\${PACKAGE_NAME}.tar.gz\" > \"\${PACKAGE_NAME}.tar.gz.sha256\"
-          "
+            cd /workspace/package
+            tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+            sha256sum "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.tar.gz.sha256"
+            
+            echo "==== Package created: ${PACKAGE_NAME}.tar.gz ===="
+          '
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
