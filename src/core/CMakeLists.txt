@@ -1,8 +1,17 @@
 # Core模块CMakeLists.txt
 
 set(CORE_SOURCES
+    # Config模块
+    config/UserProfile.cpp
+    config/UserProfile.h
+    config/ConfigManager.cpp
+    config/ConfigManager.h
+    
+    # Models模块
     models/PeerNode.cpp
     models/PeerNode.h
+    
+    # Communication模块
     communication/PeerDiscovery.cpp
     communication/PeerDiscovery.h
 )

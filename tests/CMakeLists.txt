@@ -12,8 +12,9 @@ include(GoogleTest)
 
 # 测试源文件
 set(TEST_SOURCES
-    core/PeerNode_test.cpp
-    core/PeerDiscovery_test.cpp
+    core/config/UserProfile_test.cpp
+    # core/PeerNode_test.cpp  # TODO: 待实现
+    # core/PeerDiscovery_test.cpp  # TODO: 待实现
 )
 
 # 创建测试可执行文件
@@ -24,6 +25,7 @@ target_link_libraries(flykylin_tests PRIVATE
     GTest::gtest_main
     Qt6::Core
     Qt6::Network
+    Qt6::Test
     flykylin_core
 )
 
