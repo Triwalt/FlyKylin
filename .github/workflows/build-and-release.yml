@@ -181,8 +181,9 @@ jobs:
         New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
         Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
-        # Deploy Qt dependencies
-        & "$env:QT_ROOT_DIR/bin/windeployqt.exe" `
+        # Deploy Qt dependencies (use host tools for ARM64 cross-compile)
+        $windeployqt = if ($env:QT_HOST_PATH) { "$env:QT_HOST_PATH/bin/windeployqt.exe" } else { "$env:QT_ROOT_DIR/bin/windeployqt.exe" }
+        & $windeployqt `
           --release --no-translations `
           "$PACKAGE_DIR/FlyKylin.exe"
         
