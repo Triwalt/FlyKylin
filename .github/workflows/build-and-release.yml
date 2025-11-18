@@ -354,6 +354,7 @@ jobs:
             
             echo "==== Setting up vcpkg ===="
             git config --global --add safe.directory /workspace/vcpkg
+            rm -rf /workspace/vcpkg
             git clone https://github.com/Microsoft/vcpkg.git /workspace/vcpkg
             cd /workspace/vcpkg
             git checkout ${VCPKG_COMMIT}
