@@ -349,7 +349,7 @@ jobs:
               libxkbcommon-dev libxcb-*-dev \
               libfontconfig1-dev libfreetype6-dev \
               libdbus-1-dev libssl-dev \
-              wget git ca-certificates \
+              curl zip unzip tar wget git ca-certificates \
               qt6-base-dev qt6-base-dev-tools
             
             echo "==== Setting up vcpkg ===="
