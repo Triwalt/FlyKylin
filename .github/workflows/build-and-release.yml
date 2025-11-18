@@ -340,7 +340,7 @@ jobs:
           -e QT_VERSION=${{ env.QT_VERSION }} \
           -e VERSION=${{ github.event.inputs.version }} \
           -e REF_NAME=${{ github.ref_name }} \
-          ubuntu:22.04 bash -c '
+          ubuntu:24.04 bash -c '
             set -e
             export DEBIAN_FRONTEND=noninteractive
             
@@ -353,7 +353,7 @@ jobs:
               libfontconfig1-dev libfreetype6-dev \
               libdbus-1-dev libssl-dev \
               curl zip unzip tar wget git ca-certificates \
-              python3 python3-pip python3-setuptools
+              qt6-base-dev qt6-base-dev-tools
             
             echo "==== Setting up vcpkg ===="
             git config --global --add safe.directory /workspace/vcpkg
@@ -363,18 +363,19 @@ jobs:
             git checkout ${VCPKG_COMMIT}
             ./bootstrap-vcpkg.sh
             
-            echo "==== Installing Qt ${QT_VERSION} ===="
-            pip3 install aqtinstall
-            aqt install-qt linux desktop ${QT_VERSION} gcc_arm64 -O /opt/Qt
-            export Qt6_DIR=/opt/Qt/${QT_VERSION}/gcc_arm64/lib/cmake/Qt6
-            export QT_ROOT_DIR=/opt/Qt/${QT_VERSION}/gcc_arm64
+            echo "==== Checking Qt version ===="
+            QT_VERSION_INSTALLED=$(qmake6 -query QT_VERSION || echo "unknown")
+            echo "Installed Qt version: ${QT_VERSION_INSTALLED}"
+            
+            echo "==== Setting Qt paths ===="
+            export QT_ROOT_DIR=$(qmake6 -query QT_INSTALL_PREFIX)
+            export Qt6_DIR=${QT_ROOT_DIR}/lib/$(gcc -print-multiarch)/cmake/Qt6
             export PATH="${QT_ROOT_DIR}/bin:$PATH"
             export LD_LIBRARY_PATH="${QT_ROOT_DIR}/lib:$LD_LIBRARY_PATH"
             
-            echo "==== Verifying Qt installation ===="
             echo "Qt6_DIR = ${Qt6_DIR}"
             echo "QT_ROOT_DIR = ${QT_ROOT_DIR}"
-            qmake --version || echo "qmake not found"
+            qmake6 --version
             
             echo "==== Building project ===="
             cd /workspace
