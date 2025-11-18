@@ -57,6 +57,7 @@ qrc_*.cpp
 # 第三方库（应该通过包管理器安装）
 3rdparty/onnxruntime/
 3rdparty/rknn_api/
+3rdparty/rknn-toolkit2/
 3rdparty/protobuf/
 
 # 测试覆盖率
@@ -121,9 +122,10 @@ ENV/
 *.pb.h
 *_pb2.py
 
-# ONNX模型文件（大文件不应提交）
+# AI Model files (large files should not be committed)
 *.onnx
 *.rknn
+model/rknn/*.rknn
 
 # 数据文件
 *.db
