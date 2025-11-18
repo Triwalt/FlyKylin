@@ -19,6 +19,7 @@ env:
   CMAKE_VERSION: '3.27.0'
   VCPKG_COMMIT: '3af1d1e60af2b2abf55760538cd607829029b07a'
   BUILD_TYPE: Release
+  VCPKG_BUILD_TYPE: release  # Only build release libraries, skip debug
 
 jobs:
   # ===========================================
