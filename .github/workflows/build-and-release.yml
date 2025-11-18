@@ -15,9 +15,9 @@ on:
         default: ''
 
 env:
-  QT_VERSION: '6.5.3'
+  QT_VERSION: '6.8.1'
   CMAKE_VERSION: '3.27.0'
-  VCPKG_COMMIT: '2024.01.12'
+  VCPKG_COMMIT: 'a42af01b72c28a8e1d7b48107b33e4f286a55ef6'
   BUILD_TYPE: Release
 
 jobs:
@@ -37,12 +37,24 @@ jobs:
       uses: microsoft/setup-msbuild@v1.3
     
     - name: Install Qt
-      uses: jurplel/install-qt-action@v3
+      uses: jurplel/install-qt-action@v4
       with:
         version: ${{ env.QT_VERSION }}
-        arch: win64_msvc2019_64
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
         modules: 'qtnetworkauth'
         cache: true
+    
+    - name: Verify Qt installation
+      run: |
+        Write-Host "Qt6_DIR = $env:Qt6_DIR" -ForegroundColor Cyan
+        Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR" -ForegroundColor Cyan
+        if (Test-Path "$env:Qt6_DIR") {
+          Write-Host "✓ Qt6_DIR exists" -ForegroundColor Green
+        } else {
+          Write-Host "✗ Qt6_DIR not found" -ForegroundColor Red
+        }
     
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
@@ -59,7 +71,8 @@ jobs:
       run: |
         cmake -B build -G "Visual Studio 17 2022" -A x64 `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-          -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" `
+          -DQt6_DIR="$env:Qt6_DIR" `
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
     
     - name: Build
@@ -84,7 +97,7 @@ jobs:
         Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies
-        & "${{ env.Qt6_DIR }}/bin/windeployqt.exe" `
+        & "$env:QT_ROOT_DIR/bin/windeployqt.exe" `
           --release --no-translations `
           "$PACKAGE_DIR/FlyKylin.exe"
         
@@ -123,12 +136,19 @@ jobs:
       uses: microsoft/setup-msbuild@v1.3
     
     - name: Install Qt
-      uses: jurplel/install-qt-action@v3
+      uses: jurplel/install-qt-action@v4
       with:
         version: ${{ env.QT_VERSION }}
-        arch: win64_msvc2019_arm64
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_arm64'
         modules: 'qtnetworkauth'
         cache: true
+    
+    - name: Verify Qt installation
+      run: |
+        Write-Host "Qt6_DIR = $env:Qt6_DIR" -ForegroundColor Cyan
+        Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR" -ForegroundColor Cyan
     
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
@@ -145,7 +165,8 @@ jobs:
       run: |
         cmake -B build -G "Visual Studio 17 2022" -A ARM64 `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-          -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" `
+          -DQt6_DIR="$env:Qt6_DIR" `
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
     
     - name: Build
@@ -166,7 +187,7 @@ jobs:
         Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies
-        & "${{ env.Qt6_DIR }}/bin/windeployqt.exe" `
+        & "$env:QT_ROOT_DIR/bin/windeployqt.exe" `
           --release --no-translations `
           "$PACKAGE_DIR/FlyKylin.exe"
         
@@ -212,12 +233,19 @@ jobs:
           libdbus-1-dev libssl-dev
     
     - name: Install Qt
-      uses: jurplel/install-qt-action@v3
+      uses: jurplel/install-qt-action@v4
       with:
         version: ${{ env.QT_VERSION }}
-        arch: gcc_64
+        host: 'linux'
+        target: 'desktop'
+        arch: 'gcc_64'
         modules: 'qtnetworkauth'
         cache: true
+    
+    - name: Verify Qt installation
+      run: |
+        echo "Qt6_DIR = $Qt6_DIR"
+        echo "QT_ROOT_DIR = $QT_ROOT_DIR"
     
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
@@ -234,7 +262,8 @@ jobs:
       run: |
         cmake -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-          -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" \
+          -DQt6_DIR="$Qt6_DIR" \
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" \
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
     
     - name: Build
@@ -261,7 +290,7 @@ jobs:
         
         # Copy Qt libraries
         mkdir -p "$PACKAGE_DIR/lib"
-        cp -P ${{ env.Qt6_DIR }}/lib/libQt6*.so* "$PACKAGE_DIR/lib/" || true
+        cp -P $QT_ROOT_DIR/lib/libQt6*.so* "$PACKAGE_DIR/lib/" || true
         
         # Create launcher script
         cat > "$PACKAGE_DIR/FlyKylin.sh" << 'EOF'
