@@ -72,6 +72,7 @@ jobs:
       run: |
         cmake -B build -G "Visual Studio 17 2022" -A x64 `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+          -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} `
           -DQt6_DIR="$env:Qt6_DIR" `
           -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -161,6 +162,7 @@ jobs:
       run: |
         cmake -B build -G "Visual Studio 17 2022" -A ARM64 `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+          -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} `
           -DQt6_DIR="$env:Qt6_DIR" `
           -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -254,6 +256,7 @@ jobs:
       run: |
         cmake -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} \
           -DQt6_DIR="$Qt6_DIR" \
           -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" \
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -379,9 +382,9 @@ jobs:
             
             echo "==== Building project ===="
             cd /workspace
-            export VCPKG_BUILD_TYPE=${VCPKG_BUILD_TYPE}
             cmake -B build -G Ninja \
               -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DVCPKG_BUILD_TYPE=${VCPKG_BUILD_TYPE} \
               -DQt6_DIR="${Qt6_DIR}" \
               -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}" \
               -DCMAKE_TOOLCHAIN_FILE=/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake
