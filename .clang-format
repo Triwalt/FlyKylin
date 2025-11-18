@@ -1,0 +1,278 @@
+# FlyKylin C++ 代码格式化配置
+# 基于LLVM风格，针对Qt和C++20优化
+
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# 访问修饰符缩进
+AccessModifierOffset: -4
+
+# 对齐
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments: None
+AlignConsecutiveBitFields: None
+AlignConsecutiveDeclarations: None
+AlignConsecutiveMacros: Consecutive
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AlignTrailingComments: true
+
+# 允许参数在不同行
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: false
+
+# 总是在定义/声明的返回类型后换行
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakTemplateDeclarations: Yes
+
+# 参数装箱
+BinPackArguments: false
+BinPackParameters: false
+
+# 位域冒号对齐
+BitFieldColonSpacing: Both
+
+# 大括号换行风格
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+
+# 二元操作符换行
+BreakBeforeBinaryOperators: None
+BreakBeforeConceptDeclarations: true
+BreakBeforeTernaryOperators: true
+
+# 构造函数初始化列表
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+
+# 字符串换行
+BreakStringLiterals: true
+
+# 列宽限制
+ColumnLimit: 100
+
+# 注释对齐
+CommentPragmas: '^ IWYU pragma:'
+
+# 紧凑命名空间
+CompactNamespaces: false
+
+# 构造函数初始化缩进
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+
+# C++11大括号列表风格
+Cpp11BracedListStyle: true
+
+# 派生行尾空格
+DeriveLineEnding: true
+DerivePointerAlignment: false
+
+# 禁用格式化
+DisableFormat: false
+
+# 空行保留
+EmptyLineAfterAccessModifier: Never
+EmptyLineBeforeAccessModifier: LogicalBlock
+
+# 修复命名空间注释
+FixNamespaceComments: true
+
+# include排序
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Qt headers
+  - Regex: '^<Q.*'
+    Priority: 2
+  # C++ standard library
+  - Regex: '^<.*\.h>'
+    Priority: 1
+  - Regex: '^<.*'
+    Priority: 1
+  # Project headers
+  - Regex: '.*'
+    Priority: 3
+IncludeIsMainRegex: '(Test)?$'
+IncludeIsMainSourceRegex: ''
+
+# 缩进
+IndentAccessModifiers: false
+IndentCaseBlocks: false
+IndentCaseLabels: true
+IndentExternBlock: AfterExternBlock
+IndentGotoLabels: true
+IndentPPDirectives: None
+IndentRequires: false
+IndentWidth: 4
+IndentWrappedFunctionNames: false
+
+# 插入尾随逗号
+InsertTrailingCommas: None
+
+# 保留块开始的空行
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# Lambda缩进
+LambdaBodyIndentation: Signature
+
+# 最大空行数
+MaxEmptyLinesToKeep: 1
+
+# 命名空间缩进
+NamespaceIndentation: None
+
+# Objective-C风格（不适用）
+ObjCBinPackProtocolList: Auto
+ObjCBlockIndentWidth: 4
+ObjCBreakBeforeNestedBlockParam: true
+ObjCSpaceAfterProperty: false
+ObjCSpaceBeforeProtocolList: true
+
+# Pack构造函数初始化
+PackConstructorInitializers: NextLine
+
+# 惩罚（控制换行偏好）
+PenaltyBreakAssignment: 2
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakOpenParenthesis: 0
+PenaltyBreakString: 1000
+PenaltyBreakTemplateDeclaration: 10
+PenaltyExcessCharacter: 1000000
+PenaltyIndentedWhitespace: 0
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# 指针对齐
+PointerAlignment: Left
+
+# 原始字符串格式
+PPIndentWidth: -1
+
+# 引用对齐
+ReferenceAlignment: Pointer
+
+# 重排注释
+ReflowComments: true
+
+# 移除括号（C++17）
+RemoveBracesLLVM: false
+
+# requires子句位置
+RequiresClausePosition: OwnLine
+
+# 分隔定义块
+SeparateDefinitionBlocks: Leave
+
+# 短命名空间行数
+ShortNamespaceLines: 1
+
+# 排序includes
+SortIncludes: CaseSensitive
+SortUsingDeclarations: true
+
+# C风格类型转换后空格
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+
+# 赋值操作符前空格
+SpaceBeforeAssignmentOperators: true
+
+# case冒号前空格
+SpaceBeforeCaseColon: false
+
+# C++11大括号初始化列表
+SpaceBeforeCpp11BracedList: false
+
+# 构造函数初始化冒号前空格
+SpaceBeforeCtorInitializerColon: true
+
+# 继承冒号前空格
+SpaceBeforeInheritanceColon: true
+
+# 括号空格
+SpaceBeforeParens: ControlStatements
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+  AfterForeachMacros: true
+  AfterFunctionDefinitionName: false
+  AfterFunctionDeclarationName: false
+  AfterIfMacros: true
+  AfterOverloadedOperator: false
+  AfterRequiresInClause: false
+  AfterRequiresInExpression: false
+  BeforeNonEmptyParentheses: false
+
+# range-based for循环冒号前空格
+SpaceBeforeRangeBasedForLoopColon: true
+
+# 方括号前空格
+SpaceBeforeSquareBrackets: false
+
+# 空括号中的空格
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+
+# 尾随注释前空格数
+SpacesBeforeTrailingComments: 2
+
+# 尖括号空格
+SpacesInAngles: Never
+
+# 条件语句括号中空格
+SpacesInConditionalStatement: false
+
+# 容器字面量中空格
+SpacesInContainerLiterals: false
+
+# C风格类型转换括号中空格
+SpacesInCStyleCastParentheses: false
+
+# 行注释前空格
+SpacesInLineCommentPrefix:
+  Minimum: 1
+  Maximum: -1
+
+# 括号中空格
+SpacesInParentheses: false
+
+# 方括号中空格
+SpacesInSquareBrackets: false
+
+# C++标准
+Standard: c++20
+
+# Tab宽度
+TabWidth: 4
+
+# 使用Tab
+UseTab: Never
+...

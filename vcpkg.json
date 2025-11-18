@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "flykylin",
+  "version": "1.0.0",
+  "description": "AI-Powered P2P LAN Communication Tool",
+  "homepage": "https://github.com/flykylin-team/flykylin",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "protobuf"
+    },
+    {
+      "name": "sqlite3"
+    },
+    {
+      "name": "gtest"
+    }
+  ],
+  "features": {
+    "tests": {
+      "description": "Build with tests",
+      "dependencies": [
+        "gtest",
+        "gmock"
+      ]
+    },
+    "onnxruntime": {
+      "description": "Enable ONNX Runtime AI acceleration",
+      "dependencies": []
+    }
+  },
+  "builtin-baseline": "3af1d1e60af2b2abf55760538cd607829029b07a"
+}

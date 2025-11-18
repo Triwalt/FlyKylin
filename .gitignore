@@ -1,0 +1,192 @@
+# C++编译产物
+*.o
+*.obj
+*.exe
+*.out
+*.app
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# CMake
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# Qt
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+*.moc
+*.moc.cpp
+ui_*.h
+qrc_*.cpp
+*.qmlc
+*.jsc
+*.pyc
+.qmake.stash
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.user
+*.suo
+*.ncb
+*.aps
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+.vs/
+
+# Windsurf
+.windsurf/.cascade/
+
+# 第三方库（应该通过包管理器安装）
+3rdparty/onnxruntime/
+3rdparty/rknn_api/
+3rdparty/protobuf/
+
+# 测试覆盖率
+*.gcov
+*.gcda
+*.gcno
+coverage/
+coverage.info
+coverage_html/
+
+# 性能分析
+*.prof
+*.out.perf
+gmon.out
+perf.data
+perf.data.old
+
+# Valgrind
+*.valgrind
+vgcore.*
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# 打包文件
+*.zip
+*.tar.gz
+*.deb
+*.rpm
+*.dmg
+*.AppImage
+_CPack_Packages/
+
+# 构建产物
+bin/
+lib/
+dist/
+
+# Python (如果使用Python脚本)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+
+# 编辑器
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# Protobuf生成的文件
+*.pb.cc
+*.pb.h
+*_pb2.py
+
+# ONNX模型文件（大文件不应提交）
+*.onnx
+*.rknn
+
+# 数据文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 用户配置文件
+config/user.json
+config/local.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# 文档生成
+docs/_build/
+docs/html/
+docs/latex/
+
+# Doxygen
+Doxygen/
+html/
+latex/
+
+# ============================================
+# 项目特定忽略规则
+# ============================================
+
+# 发布临时文件
+releases/temp/
+releases/*/temp/
+
+# Sprint临时进度文档（根目录）
+/SPRINT*_PROGRESS.md
+/SPRINT*_STATUS.md
+/SPRINT*_COMPLETE.md
+/BUILD_SUCCESS.md
+
+# 工具生成的临时文件
+tools/output/
+tools/.temp/
+
+# 构建日志
+build*.log
+cmake*.log
+test*.log
+
+# 备份文件
+*.backup
+*.orig
+
+# 编辑器临时文件
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml

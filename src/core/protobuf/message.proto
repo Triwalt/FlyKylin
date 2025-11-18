@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package flykylin.proto;
+
+// 消息类型枚举
+enum MessageType {
+    MSG_UNKNOWN = 0;        // 未知消息
+    MSG_ONLINE = 1;         // 上线通知（UDP广播）
+    MSG_OFFLINE = 2;        // 下线通知（UDP广播）
+    MSG_HEARTBEAT = 3;      // 心跳（UDP广播）
+    MSG_PING = 4;           // TCP心跳请求
+    MSG_PONG = 5;           // TCP心跳响应
+    MSG_TEXT = 10;          // 文本消息（TCP）
+    MSG_FILE_REQUEST = 11;  // 文件传输请求（保留）
+}
+
+// 用户信息
+message UserInfo {
+    string user_id = 1;     // 用户ID（IP地址）
+    string user_name = 2;   // 用户名
+    string host_name = 3;   // 主机名
+    int32 tcp_port = 4;     // TCP监听端口
+    int64 timestamp = 5;    // 时间戳（毫秒）
+}
+
+// 文本消息内容
+message TextMessage {
+    string content = 1;     // 消息内容
+    int64 timestamp = 2;    // 发送时间戳
+    string session_id = 3;  // 会话ID（保留）
+}
+
+// 通用消息包装
+message Message {
+    MessageType type = 1;   // 消息类型
+    UserInfo sender = 2;    // 发送者信息
+    
+    oneof payload {
+        TextMessage text = 10;      // 文本消息
+        // 后续扩展其他消息类型
+    }
+}

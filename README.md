@@ -2,6 +2,12 @@
 
 > 基于AI Agent协作的下一代智能局域网协作套件
 
+## 🚀 Windsurf环境快速开始
+
+**在Windsurf中开发？** 查看 [`.windsurf/QUICKSTART.md`](.windsurf/QUICKSTART.md) - 5分钟上手多Agent工作流！
+
+**完整工作流指南**：[`.windsurf/agent_workflow.md`](.windsurf/agent_workflow.md)
+
 ## 🎯 项目愿景
 
 构建一个跨平台(Windows/RK3566)的局域网即时通讯工具，集成AI功能(NSFW检测、聊天摘要、语义搜索、消息翻译)并利用NPU/GPU硬件加速，同时建立基于多Agent协作的现代化软件开发工作流。
