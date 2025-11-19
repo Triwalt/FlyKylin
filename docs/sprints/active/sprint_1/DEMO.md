@@ -229,7 +229,7 @@ start build\bin\Release\FlyKylin.exe
 
 ### 编码规范
 - ✅ C++20标准
-- ✅ Qt 6.5+ API
+- ✅ Qt 6.4+ API
 - ✅ Doxygen注释
 - ✅ RAII资源管理
 - ✅ 智能指针（std::unique_ptr）

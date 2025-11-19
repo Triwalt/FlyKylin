@@ -57,7 +57,7 @@ message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 # Qt 6.9.3路径 (D:/Qt/6.9.3/msvc2022_64)
 set(CMAKE_PREFIX_PATH "D:/Qt/6.9.3/msvc2022_64" CACHE PATH "Qt installation path")
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS
+find_package(Qt6 6.4 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
