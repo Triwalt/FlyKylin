@@ -2,7 +2,7 @@ name: Build and Release
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'feature/**' ]
     tags:
       - 'v*'
   pull_request:
@@ -34,13 +34,11 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+    - name: Setup CMake and Ninja
+      uses: lukka/get-cmake@latest
 
     - name: Setup MSVC
-      uses: microsoft/setup-msbuild@v1.3
+      uses: ilammy/msvc-dev-cmd@v1
     
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
@@ -70,7 +68,7 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build -G "Visual Studio 17 2022" -A x64 `
+        cmake -B build -G Ninja `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
           -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} `
           -DQt6_DIR="$env:Qt6_DIR" `
@@ -96,7 +94,7 @@ jobs:
         $PACKAGE_DIR = "package/$PACKAGE_NAME"
         
         New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
-        Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        Copy-Item "build/bin/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies
         & "$env:QT_ROOT_DIR/bin/windeployqt.exe" `
@@ -134,8 +132,13 @@ jobs:
       with:
         fetch-depth: 0
     
+    - name: Setup CMake and Ninja
+      uses: lukka/get-cmake@latest
+
     - name: Setup MSVC
-      uses: microsoft/setup-msbuild@v1.3
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64_arm64
     
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
@@ -160,9 +163,10 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build -G "Visual Studio 17 2022" -A ARM64 `
+        cmake -B build -G Ninja `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
           -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} `
+          -DVCPKG_TARGET_TRIPLET=arm64-windows `
           -DQt6_DIR="$env:Qt6_DIR" `
           -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -182,7 +186,7 @@ jobs:
         $PACKAGE_DIR = "package/$PACKAGE_NAME"
         
         New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
-        Copy-Item "build/bin/${{ env.BUILD_TYPE }}/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        Copy-Item "build/bin/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies (use host tools for ARM64 cross-compile)
         $windeployqt = if ($env:QT_HOST_PATH) { "$env:QT_HOST_PATH/bin/windeployqt.exe" } else { "$env:QT_ROOT_DIR/bin/windeployqt.exe" }
