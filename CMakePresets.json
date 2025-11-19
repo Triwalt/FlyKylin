@@ -1,0 +1,171 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "VCPKG_BUILD_TYPE": "release"
+      }
+    },
+    {
+      "name": "base-msvc",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "VCPKG_BUILD_TYPE": "release",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "base-msvc",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "D:/Qt/6.9.3/msvc2022_64"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": ["Windows"]
+        }
+      }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows Release (MSVC x64)",
+      "description": "Windows Release build with MSVC and vcpkg",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows-debug",
+      "displayName": "Windows Debug (MSVC x64)",
+      "description": "Windows Debug build with MSVC and vcpkg",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_C_COMPILER": "gcc"
+      }
+    },
+    {
+      "name": "linux-amd64-release",
+      "displayName": "Linux AMD64 Release",
+      "description": "Linux x86_64 Release build with GCC",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-arm64-release",
+      "displayName": "Linux ARM64 Release (RK3566)",
+      "description": "Linux ARM64 Release build for RK3566 platform",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "ON",
+        "RK3566_PLATFORM": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "displayName": "Build Windows Release",
+      "description": "Build Windows Release configuration"
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "displayName": "Build Windows Debug",
+      "description": "Build Windows Debug configuration"
+    },
+    {
+      "name": "linux-amd64-release",
+      "configurePreset": "linux-amd64-release",
+      "displayName": "Build Linux AMD64 Release",
+      "description": "Build Linux x86_64 Release configuration"
+    },
+    {
+      "name": "linux-arm64-release",
+      "configurePreset": "linux-arm64-release",
+      "displayName": "Build Linux ARM64 Release",
+      "description": "Build Linux ARM64 Release for RK3566"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "displayName": "Test Windows Release",
+      "description": "Run tests for Windows Release build",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "displayName": "Test Windows Debug",
+      "description": "Run tests for Windows Debug build",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-amd64-release",
+      "configurePreset": "linux-amd64-release",
+      "displayName": "Test Linux AMD64 Release",
+      "description": "Run tests for Linux AMD64 Release build",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-arm64-release",
+      "configurePreset": "linux-arm64-release",
+      "displayName": "Test Linux ARM64 Release",
+      "description": "Run tests for Linux ARM64 Release build",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -14,7 +14,15 @@
 #include <QTimer>
 #include <QMap>
 #include <QDateTime>
+#include <memory>
 #include "../models/PeerNode.h"
+
+// 前向声明
+namespace flykylin {
+namespace adapters {
+    class ProtobufSerializer;
+}
+}
 
 namespace flykylin {
 namespace core {
@@ -67,6 +75,12 @@ public:
      * @return 在线节点数量
      */
     int onlineNodeCount() const { return m_peers.count(); }
+
+    /**
+     * @brief 启用/禁用本地回环模式（用于开发测试）
+     * @param enable true启用本地回环，false禁用
+     */
+    void setLoopbackEnabled(bool enable) { m_loopbackEnabled = enable; }
 
 signals:
     /**
@@ -130,9 +144,12 @@ private:
     quint16 m_udpPort;                          ///< UDP监听端口
     quint16 m_tcpPort;                          ///< 本地TCP端口
     bool m_isRunning;                           ///< 运行状态
+    bool m_loopbackEnabled;                     ///< 本地回环模式（开发测试用）
     
     QMap<QString, PeerNode> m_peers;            ///< userId -> PeerNode
     QMap<QString, QDateTime> m_lastSeen;        ///< userId -> 最后心跳时间
+    
+    std::unique_ptr<flykylin::adapters::ProtobufSerializer> m_serializer;  ///< Protobuf序列化器
     
     static constexpr int kBroadcastInterval = 5000;     ///< 广播间隔（毫秒）
     static constexpr int kTimeoutCheckInterval = 10000;  ///< 超时检测间隔（毫秒）

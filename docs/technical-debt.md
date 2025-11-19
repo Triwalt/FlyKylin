@@ -1,6 +1,6 @@
 # FlyKylin 技术债务清单
 
-**最后更新**: 2024-11-18  
+**最后更新**: 2024-11-20  
 **状态**: 活跃追踪
 
 ---
@@ -9,9 +9,9 @@
 
 | 总计 | Critical | High | Medium | Low |
 |------|----------|------|--------|-----|
-| 7 | 0 | 1 | 4 | 2 |
+| 10 | 0 | 5 | 3 | 2 |
 
-**总预计工作量**: ~24小时
+**总预计工作量**: ~41小时
 
 ---
 
@@ -309,18 +309,174 @@ TEST_F(PeerListViewModelTest, FilterKeyword_UpdatesModel) {
 
 ---
 
-## 🎯 Sprint 2优先清理
+---
 
-根据优先级和工作量，Sprint 2计划清理以下债务：
+## 🟠 Sprint 2新增债务
 
-1. **TD-001** (High, 8h) - Protobuf序列化
-2. **TD-002** (Medium, 2h) - 缓存网络接口
-3. **TD-004** (Medium, 2h) - 枚举替代魔法数字
+### TD-008: Message类缺少status字段
 
-**总计**: 12小时（Sprint 2预留2 SP用于技术债务清理）
+**债务ID**: TD-008  
+**来源**: Sprint 2实现  
+**影响范围**: `src/core/models/Message.h`  
+**优先级**: High  
+**预计工作量**: 2小时
+
+**描述**:  
+当前Message类无法表示消息状态（发送中、已送达、已读、失败等）。MessageService中多处需要设置状态但被注释掉。
+
+**解决方案**:
+```cpp
+// Message.h添加
+enum class MessageStatus {
+    Sending,
+    Sent,
+    Delivered,
+    Read,
+    Failed
+};
+
+class Message {
+    // ...
+    MessageStatus status() const;
+    void setStatus(MessageStatus status);
+private:
+    MessageStatus m_status = MessageStatus::Sending;
+};
+```
+
+**计划解决Sprint**: Sprint 3  
+**负责人**: Development Execution Agent
+
+---
+
+### TD-009: UserProfile未实现单例模式
+
+**债务ID**: TD-009  
+**来源**: Sprint 2实现  
+**影响范围**: `src/core/config/UserProfile.h`  
+**优先级**: High  
+**预计工作量**: 3小时
+
+**描述**:  
+UserProfile类存在但不是单例，导致MessageService等使用占位符"local_user"。
+
+**解决方案**:
+```cpp
+class UserProfile {
+public:
+    static UserProfile& instance();
+    QString userId() const;
+    QString userName() const;
+    // ...
+private:
+    UserProfile();
+    static UserProfile* s_instance;
+};
+```
+
+**计划解决Sprint**: Sprint 3  
+**负责人**: Development Execution Agent
+
+---
+
+### TD-010: 缺少MessageService单元测试
+
+**债务ID**: TD-010  
+**来源**: Sprint 2 Code Review  
+**影响范围**: `tests/core/services/`  
+**优先级**: High  
+**预计工作量**: 6小时
+
+**描述**:  
+MessageService是核心服务，但没有单元测试，降低代码质量保障。
+
+**解决方案**:  
+创建`MessageService_test.cpp`，测试：
+- Protobuf序列化/反序列化
+- 消息发送/接收
+- 错误处理
+- Echo Bot集成
+
+**计划解决Sprint**: Sprint 3  
+**负责人**: Testing Agent
+
+---
+
+### TD-011: 缺少ChatViewModel单元测试
+
+**债务ID**: TD-011  
+**来源**: Sprint 2 Code Review  
+**影响范围**: `tests/ui/viewmodels/`  
+**优先级**: High  
+**预计工作量**: 4小时
+
+**描述**:  
+ChatViewModel是MVVM关键组件，但没有单元测试。
+
+**解决方案**:  
+测试sendMessage、messageReceived等核心流程
+
+**计划解决Sprint**: Sprint 3  
+**负责人**: Testing Agent
+
+---
+
+### TD-012: 消息仅存储在内存
+
+**债务ID**: TD-012  
+**来源**: Sprint 2实现  
+**影响范围**: `src/core/services/MessageService.cpp`  
+**优先级**: Medium  
+**预计工作量**: 6小时
+
+**描述**:  
+消息历史只存储在QMap中，程序重启后丢失。
+
+**解决方案**:  
+使用SQLite持久化消息
+
+**计划解决Sprint**: Sprint 4  
+**负责人**: Development Execution Agent
+
+---
+
+## 🎯 Sprint 2债务清理结果
+
+### 已解决
+1. **TD-001** (High, 8h) - ✅ Protobuf序列化 - 已完成
+
+### 部分解决
+2. **TD-004** (Medium, 2h) - ⚠️ 枚举替代魔法数字 - Protobuf中已使用枚举
+
+### 未解决
+3. **TD-002** (Medium, 2h) - 缓存网络接口 - 延后至Sprint 3
+
+### 新增债务
+- TD-008: Message status字段
+- TD-009: UserProfile单例
+- TD-010: MessageService单元测试
+- TD-011: ChatViewModel单元测试
+- TD-012: 消息持久化
+
+**Sprint 2债务变化**: 7个 → 10个（新增5个，解决1个，部分解决1个）
+
+---
+
+## 🎯 Sprint 3优先清理
+
+根据优先级和工作量，Sprint 3计划清理以下债务：
+
+1. **TD-008** (High, 2h) - Message status字段
+2. **TD-009** (High, 3h) - UserProfile单例
+3. **TD-010** (High, 6h) - MessageService单元测试
+4. **TD-011** (High, 4h) - ChatViewModel单元测试
+5. **TD-002** (Medium, 2h) - 缓存网络接口
+
+**总计**: 17小时（Sprint 3预留3 SP用于技术债务清理）
 
 ---
 
 **维护人**: Quality Assurance Agent  
 **审查周期**: 每Sprint  
-**文档版本**: 1.0
+**文档版本**: 1.1  
+**最后更新**: 2024-11-20 (Sprint 2结束)

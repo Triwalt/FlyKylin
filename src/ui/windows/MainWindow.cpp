@@ -4,11 +4,14 @@
  */
 
 #include "MainWindow.h"
+#include "ChatWindow.h"
 #include "../../core/communication/PeerDiscovery.h"
+#include "../../core/services/LocalEchoService.h"
 #include "../viewmodels/PeerListViewModel.h"
 #include "../widgets/PeerListWidget.h"
 #include <QDebug>
 #include <QMessageBox>
+#include <QMap>
 
 namespace flykylin {
 namespace ui {
@@ -84,6 +87,10 @@ void MainWindow::setupServices()
     connect(m_peerDiscovery.get(), &flykylin::core::PeerDiscovery::peerHeartbeat,
             m_peerListViewModel, &PeerListViewModel::onPeerHeartbeat);
     
+    // 启用本地回环模式（用于开发测试，可以发现本机节点）
+    m_peerDiscovery->setLoopbackEnabled(true);
+    qInfo() << "[MainWindow] Loopback mode enabled for development testing";
+    
     // 启动服务
     bool started = m_peerDiscovery->start(kUdpPort, kTcpPort);
     
@@ -106,6 +113,19 @@ void MainWindow::setupServices()
         
         qCritical() << "[MainWindow] Failed to start services";
     }
+    
+    // Add Echo Bot as virtual peer for local testing
+    core::PeerNode echoBot;
+    echoBot.setUserId(services::LocalEchoService::getEchoBotId());
+    echoBot.setUserName(services::LocalEchoService::getEchoBotName());
+    echoBot.setHostName("localhost");
+    echoBot.setIpAddress("127.0.0.1");
+    echoBot.setTcpPort(0);  // No real TCP connection
+    echoBot.setOnline(true);
+    echoBot.setLastSeen(QDateTime::currentDateTime());
+    
+    m_peerListViewModel->onPeerDiscovered(echoBot);
+    qInfo() << "[MainWindow] Added Echo Bot for local testing";
 }
 
 void MainWindow::connectSignals()
@@ -117,9 +137,7 @@ void MainWindow::connectSignals()
     connect(m_peerListWidget, &PeerListWidget::userDoubleClicked,
             [this](const QString& userId) {
                 qDebug() << "[MainWindow] User double-clicked:" << userId;
-                // TODO: 打开聊天窗口（US-002实现）
-                QMessageBox::information(this, "功能提示",
-                    QString("即将与用户 %1 聊天\n（US-002: TCP长连接功能开发中）").arg(userId));
+                this->openChatWindow(userId);
             });
 }
 
@@ -129,6 +147,49 @@ void MainWindow::onUserSelected(const QString& userId)
     
     // TODO: 更新UI显示选中用户信息
     // 当前Sprint 1仅实现节点发现和用户列表，后续Sprint实现聊天功能
+}
+
+void MainWindow::openChatWindow(const QString& userId)
+{
+    // Check if window already exists
+    if (m_chatWindows.contains(userId)) {
+        // Bring existing window to front
+        ChatWindow* existingWindow = m_chatWindows[userId];
+        existingWindow->show();
+        existingWindow->raise();
+        existingWindow->activateWindow();
+        qDebug() << "[MainWindow] Brought existing chat window to front for" << userId;
+        return;
+    }
+    
+    // Get peer name (for now, use userId as name)
+    // TODO: Get actual peer name from PeerListViewModel when method is implemented
+    QString peerName = userId;
+    
+    // Create new chat window
+    ChatWindow* chatWindow = new ChatWindow();
+    chatWindow->setPeer(userId, peerName);
+    chatWindow->setAttribute(Qt::WA_DeleteOnClose); // Auto-delete when closed
+    
+    // Connect closed signal
+    connect(chatWindow, &ChatWindow::closed,
+            [this, userId]() {
+                this->onChatWindowClosed(userId);
+            });
+    
+    // Store and show window
+    m_chatWindows[userId] = chatWindow;
+    chatWindow->show();
+    
+    qInfo() << "[MainWindow] Opened new chat window for" << peerName << "(" << userId << ")";
+}
+
+void MainWindow::onChatWindowClosed(const QString& userId)
+{
+    // Remove from map (window will auto-delete)
+    if (m_chatWindows.remove(userId)) {
+        qDebug() << "[MainWindow] Chat window closed for" << userId;
+    }
 }
 
 } // namespace ui

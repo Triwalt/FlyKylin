@@ -4,14 +4,12 @@
  */
 
 #include "PeerDiscovery.h"
+#include "../adapters/ProtobufSerializer.h"
 #include <QHostAddress>
 #include <QHostInfo>
 #include <QNetworkDatagram>
 #include <QNetworkInterface>
 #include <QDebug>
-
-// TODO: 生成Protobuf头文件后添加
-// #include "message.pb.h"
 
 namespace flykylin {
 namespace core {
@@ -24,8 +22,10 @@ PeerDiscovery::PeerDiscovery(QObject* parent)
     , m_udpPort(0)
     , m_tcpPort(0)
     , m_isRunning(false)
+    , m_loopbackEnabled(false)  // 默认禁用本地回环
+    , m_serializer(std::make_unique<flykylin::adapters::ProtobufSerializer>())
 {
-    qDebug() << "[PeerDiscovery] Created";
+    qDebug() << "[PeerDiscovery] Created with Protobuf serializer";
 }
 
 PeerDiscovery::~PeerDiscovery()
@@ -148,7 +148,8 @@ void PeerDiscovery::onDatagramReceived()
             }
         }
         
-        if (localAddresses.contains(senderAddress)) {
+        // 过滤本地地址（除非启用回环模式）
+        if (!m_loopbackEnabled && localAddresses.contains(senderAddress)) {
             continue; // 跳过本地地址
         }
 
@@ -163,24 +164,50 @@ void PeerDiscovery::sendBroadcast(int messageType)
         return;
     }
 
-    // TODO: 使用Protobuf序列化消息
-    // 暂时使用简单的文本协议进行测试
-    QByteArray message;
-    message.append(QString("FLYKYLIN|%1|%2|%3|%4\n")
-                    .arg(messageType)
-                    .arg(m_tcpPort)
-                    .arg(QHostInfo::localHostName())
-                    .arg(QDateTime::currentMSecsSinceEpoch())
-                    .toUtf8());
+    // 构造当前节点信息
+    PeerNode selfNode;
+    selfNode.setUserId("local");  // 发送时不重要，接收方会用IP替换
+    selfNode.setUserName(QHostInfo::localHostName());
+    selfNode.setHostName(QHostInfo::localHostName());
+    selfNode.setIpAddress("0.0.0.0");  // 广播时不重要
+    selfNode.setTcpPort(m_tcpPort);
+    selfNode.setLastSeen(QDateTime::currentDateTime());
+    selfNode.setOnline(true);
 
-    // 广播到所有网络接口
+    // 使用Protobuf序列化
+    std::vector<uint8_t> data;
+    
+    switch (messageType) {
+        case 1: // MSG_ONLINE
+            data = m_serializer->serializePeerAnnounce(selfNode);
+            break;
+        case 2: // MSG_OFFLINE
+            data = m_serializer->serializePeerGoodbye(selfNode);
+            break;
+        case 3: // MSG_HEARTBEAT
+            data = m_serializer->serializePeerHeartbeat(selfNode);
+            break;
+        default:
+            qWarning() << "[PeerDiscovery] Unknown message type:" << messageType;
+            return;
+    }
+
+    if (data.empty()) {
+        qWarning() << "[PeerDiscovery] Failed to serialize message";
+        return;
+    }
+
+    // 转换为QByteArray并发送
+    QByteArray message(reinterpret_cast<const char*>(data.data()), data.size());
+    
+    // 发送到广播地址
     QHostAddress broadcastAddress = QHostAddress::Broadcast;
     qint64 sent = m_socket->writeDatagram(message, broadcastAddress, m_udpPort);
     
     if (sent == -1) {
         qWarning() << "[PeerDiscovery] Failed to send broadcast:" << m_socket->errorString();
     } else {
-        qDebug() << "[PeerDiscovery] Sent broadcast (type:" << messageType 
+        qDebug() << "[PeerDiscovery] Sent Protobuf broadcast (type:" << messageType 
                  << ", size:" << sent << "bytes)";
     }
 }
@@ -188,76 +215,59 @@ void PeerDiscovery::sendBroadcast(int messageType)
 void PeerDiscovery::processReceivedMessage(const QByteArray& datagram, 
                                           const QHostAddress& senderAddress)
 {
-    // TODO: 使用Protobuf反序列化消息
-    // 暂时使用简单的文本协议解析
-    QString message = QString::fromUtf8(datagram).trimmed();
-    QStringList parts = message.split('|');
+    // 转换为std::vector<uint8_t>
+    std::vector<uint8_t> data(datagram.begin(), datagram.end());
 
-    if (parts.size() < 5 || parts[0] != "FLYKYLIN") {
-        qWarning() << "[PeerDiscovery] Invalid message format:" << message;
+    // 验证消息格式
+    if (!m_serializer->isValidMessage(data)) {
+        qWarning() << "[PeerDiscovery] Invalid Protobuf message from" << senderAddress;
         return;
     }
 
-    int messageType = parts[1].toInt();
-    quint16 tcpPort = parts[2].toUShort();
-    QString hostName = parts[3];
-    qint64 timestamp = parts[4].toLongLong();
-    Q_UNUSED(timestamp);  // TODO: 将来可用于消息验证和时序检查
+    // 反序列化节点信息
+    std::optional<PeerNode> nodeOpt = m_serializer->deserializePeerMessage(data);
+    if (!nodeOpt.has_value()) {
+        qWarning() << "[PeerDiscovery] Failed to deserialize message from" << senderAddress;
+        return;
+    }
 
+    PeerNode node = nodeOpt.value();
+    
+    // 使用发送者IP作为userId
     QString userId = senderAddress.toString();
+    node.setUserId(userId);
+    node.setIpAddress(userId);
 
-    qDebug() << "[PeerDiscovery] Received from" << userId 
-             << "type:" << messageType 
-             << "host:" << hostName
-             << "tcp:" << tcpPort;
+    qDebug() << "[PeerDiscovery] Received Protobuf message from" << userId 
+             << "host:" << node.hostName()
+             << "tcp:" << node.tcpPort();
 
     // 更新最后心跳时间
     QDateTime now = QDateTime::currentDateTime();
     m_lastSeen[userId] = now;
+    node.setLastSeen(now);
 
-    // 处理不同消息类型
-    switch (messageType) {
-        case 1: // MSG_ONLINE
-        case 3: // MSG_HEARTBEAT
-        {
-            // 检查是否为新节点
-            bool isNewPeer = !m_peers.contains(userId);
-
-            // 创建或更新PeerNode
-            PeerNode node;
-            node.setUserId(userId);
-            node.setUserName(hostName); // 暂时用主机名作为用户名
-            node.setHostName(hostName);
-            node.setIpAddress(userId);
-            node.setTcpPort(tcpPort);
-            node.setLastSeen(now);
-            node.setOnline(true);
-
-            m_peers[userId] = node;
-
-            if (isNewPeer) {
-                qInfo() << "[PeerDiscovery] New peer discovered:" << userId << hostName;
-                emit peerDiscovered(node);
-            } else {
-                emit peerHeartbeat(userId);
-            }
-            break;
+    // 判断消息类型（通过是否在线状态推断）
+    if (!node.isOnline()) {
+        // MSG_OFFLINE
+        if (m_peers.contains(userId)) {
+            qInfo() << "[PeerDiscovery] Peer offline (Protobuf):" << userId;
+            m_peers.remove(userId);
+            m_lastSeen.remove(userId);
+            emit peerOffline(userId);
         }
+    } else {
+        // MSG_ONLINE or MSG_HEARTBEAT
+        bool isNewPeer = !m_peers.contains(userId);
         
-        case 2: // MSG_OFFLINE
-        {
-            if (m_peers.contains(userId)) {
-                qInfo() << "[PeerDiscovery] Peer offline:" << userId;
-                m_peers.remove(userId);
-                m_lastSeen.remove(userId);
-                emit peerOffline(userId);
-            }
-            break;
-        }
+        m_peers[userId] = node;
 
-        default:
-            qWarning() << "[PeerDiscovery] Unknown message type:" << messageType;
-            break;
+        if (isNewPeer) {
+            qInfo() << "[PeerDiscovery] New peer discovered (Protobuf):" << userId << node.hostName();
+            emit peerDiscovered(node);
+        } else {
+            emit peerHeartbeat(userId);
+        }
     }
 }
 

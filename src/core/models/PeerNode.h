@@ -47,7 +47,10 @@ public:
     QString hostName() const { return m_hostName; }
     QHostAddress ipAddress() const { return m_ipAddress; }
     quint16 tcpPort() const { return m_tcpPort; }
+    quint16 port() const { return m_tcpPort; }  ///< Alias for tcpPort()
+    QString osType() const { return m_osType; }
     QDateTime lastSeen() const { return m_lastSeen; }
+    QDateTime lastSeenTime() const { return m_lastSeen; }  ///< Alias for lastSeen()
     bool isOnline() const { return m_isOnline; }
 
     // Setters
@@ -56,7 +59,10 @@ public:
     void setHostName(const QString& hostName) { m_hostName = hostName; }
     void setIpAddress(const QString& ipAddress) { m_ipAddress = QHostAddress(ipAddress); }
     void setTcpPort(quint16 port) { m_tcpPort = port; }
+    void setPort(quint16 port) { m_tcpPort = port; }  ///< Alias for setTcpPort()
+    void setOsType(const QString& osType) { m_osType = osType; }
     void setLastSeen(const QDateTime& time) { m_lastSeen = time; }
+    void setLastSeenTime(const QDateTime& time) { m_lastSeen = time; }  ///< Alias for setLastSeen()
     void setOnline(bool online) { m_isOnline = online; }
 
     /**
@@ -81,6 +87,7 @@ private:
     QString m_hostName;         ///< 主机名
     QHostAddress m_ipAddress;   ///< IP地址
     quint16 m_tcpPort{0};       ///< TCP端口
+    QString m_osType;           ///< 操作系统类型
     QDateTime m_lastSeen;       ///< 最后心跳时间
     bool m_isOnline{true};      ///< 是否在线
 };
