@@ -7,7 +7,8 @@
   "license": "MIT",
   "dependencies": [
     {
-      "name": "protobuf"
+      "name": "protobuf",
+      "default-features": false
     },
     {
       "name": "sqlite3"

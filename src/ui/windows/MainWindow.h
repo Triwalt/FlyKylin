@@ -10,6 +10,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QMap>
 #include <memory>
 
 // 前向声明
@@ -20,6 +21,7 @@ namespace core {
 namespace ui {
     class PeerListViewModel;
     class PeerListWidget;
+    class ChatWindow;
 }
 }
 
@@ -72,8 +74,19 @@ private slots:
      * @param userId 用户ID
      */
     void onUserSelected(const QString& userId);
+    
+    /**
+     * @brief 聊天窗口关闭时的处理
+     * @param userId 用户ID
+     */
+    void onChatWindowClosed(const QString& userId);
 
 private:
+    /**
+     * @brief 打开聊天窗口
+     * @param userId 用户ID
+     */
+    void openChatWindow(const QString& userId);
     // 核心服务
     std::unique_ptr<flykylin::core::PeerDiscovery> m_peerDiscovery;
 
@@ -84,6 +97,9 @@ private:
     PeerListViewModel* m_peerListViewModel;
     PeerListWidget* m_peerListWidget;
     QLabel* m_statusLabel;
+    
+    // Chat windows管理 (userId -> ChatWindow*)
+    QMap<QString, ChatWindow*> m_chatWindows;
 
     // 常量
     static constexpr quint16 kUdpPort = 45678;

@@ -67,15 +67,16 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS
     Test
 )
 
-# Protobuf (optional for now)
-find_package(Protobuf)
-if(NOT Protobuf_FOUND)
-    message(WARNING "Protobuf not found - some features will be disabled")
-    set(ENABLE_PROTOBUF FALSE)
-else()
-    set(ENABLE_PROTOBUF TRUE)
-    message(STATUS "Protobuf found: ${Protobuf_VERSION}")
+# Protobuf（必需，用于结构化通信）
+# 强制使用vcpkg的Protobuf，避免系统路径干扰
+if(VCPKG_INSTALLED_DIR)
+    set(Protobuf_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/protobuf" CACHE PATH "Protobuf CMake config directory" FORCE)
+    message(STATUS "Forcing Protobuf from vcpkg: ${Protobuf_DIR}")
 endif()
+find_package(Protobuf CONFIG REQUIRED)
+message(STATUS "Protobuf found: ${Protobuf_VERSION}")
+message(STATUS "Protobuf DIR: ${Protobuf_DIR}")
+include_directories(${Protobuf_INCLUDE_DIRS})
 
 # ONNX Runtime
 # 注意：Python环境中有onnxruntime 1.23.2，C++ API需要单独下载
@@ -117,8 +118,10 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/src/core
     ${CMAKE_SOURCE_DIR}/src/platform
     ${CMAKE_SOURCE_DIR}/src/ui
-    ${Protobuf_INCLUDE_DIRS}
 )
+
+# 先构建protocol库
+add_subdirectory(protocol)
 
 if(ONNXRUNTIME_FOUND)
     include_directories(${ONNXRUNTIME_ROOT}/include)

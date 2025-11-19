@@ -1,0 +1,105 @@
+/**
+ * FlyKylin P2P Communication Protocol
+ * Version: 1.0.0
+ * 
+ * 本文件定义所有P2P通信消息格式
+ * 遵循简洁原则：只定义必需字段，避免过度设计
+ */
+
+syntax = "proto3";
+
+package flykylin.protocol;
+
+option cc_enable_arenas = true;  // 性能优化：启用Arena内存分配
+
+// 节点信息
+message PeerInfo {
+  string user_id = 1;           // 用户唯一ID（UUID）
+  string user_name = 2;         // 用户名
+  string ip_address = 3;        // IP地址
+  uint32 port = 4;              // TCP监听端口
+  uint64 timestamp = 5;         // 时间戳（毫秒）
+  string os_type = 6;           // 操作系统类型（Windows/Linux）
+  string version = 7;           // 客户端版本号
+}
+
+// 节点发现消息类型
+enum DiscoveryType {
+  ANNOUNCE = 0;                 // 上线公告
+  HEARTBEAT = 1;                // 心跳
+  GOODBYE = 2;                  // 下线通知
+  QUERY = 3;                    // 查询在线节点
+  QUERY_RESPONSE = 4;           // 查询响应
+}
+
+// 节点发现消息（UDP广播）
+message DiscoveryMessage {
+  DiscoveryType type = 1;       // 消息类型
+  PeerInfo peer = 2;            // 节点信息
+}
+
+// 文本消息
+message TextMessage {
+  string message_id = 1;        // 消息ID（UUID）
+  string from_user_id = 2;      // 发送者ID
+  string to_user_id = 3;        // 接收者ID
+  string content = 4;           // 文本内容
+  uint64 timestamp = 5;         // 发送时间戳
+  bool is_group = 6;            // 是否群发
+  repeated string group_ids = 7; // 群发时的群组ID列表
+}
+
+// 文件传输请求
+message FileTransferRequest {
+  string transfer_id = 1;       // 传输ID（UUID）
+  string from_user_id = 2;      // 发送者ID
+  string to_user_id = 3;        // 接收者ID
+  string file_name = 4;         // 文件名
+  uint64 file_size = 5;         // 文件大小（字节）
+  string file_hash = 6;         // 文件SHA256哈希
+  uint64 timestamp = 7;         // 请求时间戳
+}
+
+// 文件传输响应
+message FileTransferResponse {
+  string transfer_id = 1;       // 传输ID
+  bool accepted = 2;            // 是否接受
+  string reason = 3;            // 拒绝原因（如果拒绝）
+  uint32 port = 4;              // 接收端口（如果接受）
+}
+
+// 文件数据块
+message FileChunk {
+  string transfer_id = 1;       // 传输ID
+  uint64 offset = 2;            // 数据偏移量
+  bytes data = 3;               // 数据块内容
+  uint32 chunk_size = 4;        // 数据块大小
+  bool is_last = 5;             // 是否最后一块
+}
+
+// 消息确认（ACK）
+message MessageAck {
+  string message_id = 1;        // 确认的消息ID
+  bool success = 2;             // 是否成功接收
+  string error = 3;             // 错误信息（如果失败）
+  uint64 timestamp = 4;         // 确认时间戳
+}
+
+// TCP消息包装器（所有TCP消息的外层封装）
+message TcpMessage {
+  enum MessageType {
+    TEXT = 0;                   // 文本消息
+    FILE_REQUEST = 1;           // 文件传输请求
+    FILE_RESPONSE = 2;          // 文件传输响应
+    FILE_CHUNK = 3;             // 文件数据块
+    PING = 4;                   // Ping（保活）
+    PONG = 5;                   // Pong（回应）
+    ACK = 6;                    // 消息确认
+  }
+  
+  uint32 protocol_version = 1;  // 协议版本号（当前为1）
+  MessageType type = 2;         // 消息类型
+  uint64 sequence = 3;          // 消息序列号（用于可靠性和去重）
+  bytes payload = 4;            // 消息负载（根据type反序列化）
+  uint64 timestamp = 5;         // 消息时间戳
+}

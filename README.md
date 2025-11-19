@@ -8,6 +8,20 @@
 
 **完整工作流指南**：[`.windsurf/agent_workflow.md`](.windsurf/agent_workflow.md)
 
+## 🔥 架构重构进行中
+
+**当前状态**: Sprint 2（架构现代化）进行中 - [查看详情](./docs/architecture/REFACTORING_SUMMARY.md)
+
+我们正在将FlyKylin从传统C++/Qt架构演进为现代AI友好架构：
+- ✅ **CMakePresets**: 一键构建（`cmake --preset windows-release`）
+- ✅ **六边形架构**: 接口抽象层（`I_NetworkAdapter`, `I_MessageSerializer`）
+- ⏳ **Protobuf**: 结构化通信协议
+- 📅 **QML UI**: 声明式界面（Sprint 3）
+- 📅 **C++20协程**: 异步代码线性化（Sprint 4）
+- 📅 **Docker环境**: 5分钟极速构建（Sprint 5）
+
+**目标**: 构建时间-75%，代码量-40%，AI生成成功率+25% → [完整路线图](./docs/architecture/REFACTORING_ROADMAP.md)
+
 ## 🎯 项目愿景
 
 构建一个跨平台(Windows/RK3566)的局域网即时通讯工具，集成AI功能(NSFW检测、聊天摘要、语义搜索、消息翻译)并利用NPU/GPU硬件加速，同时建立基于多Agent协作的现代化软件开发工作流。
@@ -108,33 +122,43 @@
 
 ## 🚀 快速开始
 
-### 1. 阅读文档
+### 方式1: 使用CMakePresets（推荐）✨
 
 ```bash
-# 第一步：理解技术方案
-阅读 "飞秋方案.md" 第1-4章
+# 1. 克隆项目
+git clone https://github.com/flykylin/flykylin.git
+cd flykylin
 
-# 第二步：理解开发流程  
-阅读 "多Agent项目迭代工作流.md"
+# 2. 一键配置和构建（无需环境变量）
+cmake --preset windows-release
+cmake --build build/windows-release
 
-# 第三步：查看快速入门
-阅读 "项目总结与Agent使用指南.md"
+# 3. 运行
+./build/windows-release/bin/FlyKylin.exe
 ```
 
-### 2. 配置环境
+### 方式2: 传统方式
 
-```yaml
-# 必需工具
-- C++ Compiler: C++20 (MSVC/GCC)
-- Qt: 6.x
-- CMake: 3.20+
-- ONNX Runtime: 1.14+
-- rknn-toolkit2: 1.5+ (RK3566平台)
+```bash
+# 1. 配置环境（需手动设置Qt路径）
+.\tools\developer\configure-environment.ps1
+
+# 2. 构建
+cmake -B build -DVCPKG_BUILD_TYPE=release
+cmake --build build
+
+# 3. 测试
+ctest --test-dir build
 ```
 
-### 3. 启动第一个Sprint
+### 必需工具
 
-参考 [项目总结与Agent使用指南.md](./项目总结与Agent使用指南.md) 中的"Step 3: 启动第一个Sprint"章节。
+- **C++ Compiler**: C++20 (MSVC 2022 / GCC 11+)
+- **Qt**: 6.9.3+
+- **CMake**: 3.20+
+- **vcpkg**: （已集成到项目）
+- **ONNX Runtime**: 1.14+ (可选，AI功能需要)
+- **rknn-toolkit2**: 1.5+ (RK3566平台)
 
 ## 📊 技术栈
 
