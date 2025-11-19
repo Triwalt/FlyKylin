@@ -484,12 +484,12 @@ jobs:
         
         ### Windows
         - Windows 10/11 (AMD64 or ARM64)
-        - Qt 6.5+
+        - Qt 6.4+
         - 4GB RAM minimum
         
         ### Linux
         - Ubuntu 22.04+ or compatible
-        - Qt 6.5+
+        - Qt 6.4+
         - 4GB RAM minimum
         
         ## ✅ Verification
