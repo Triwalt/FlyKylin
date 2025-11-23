@@ -20,6 +20,7 @@ Message::Message(const QString& id,
     , m_content(content)
     , m_timestamp(timestamp)
     , m_isRead(false)
+    , m_status(MessageStatus::Sending)
 {
 }
 
@@ -34,7 +35,14 @@ bool Message::operator==(const Message& other) const
            m_fromUserId == other.m_fromUserId &&
            m_toUserId == other.m_toUserId &&
            m_content == other.m_content &&
-           m_timestamp == other.m_timestamp;
+           m_timestamp == other.m_timestamp &&
+           m_isRead == other.m_isRead &&
+           m_status == other.m_status &&
+           m_kind == other.m_kind &&
+           m_attachmentLocalPath == other.m_attachmentLocalPath &&
+           m_attachmentName == other.m_attachmentName &&
+           m_attachmentSize == other.m_attachmentSize &&
+           m_mimeType == other.m_mimeType;
 }
 
 bool Message::operator!=(const Message& other) const

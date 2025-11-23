@@ -1,0 +1,27 @@
+{
+	"name": "FlyKylin Dev Container",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": ".."
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cmake-tools",
+				"twxs.cmake",
+				"ms-azuretools.vscode-docker"
+			]
+		}
+	},
+	"remoteUser": "vscode",
+	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"installZsh": true,
+			"username": "vscode",
+			"userUid": "1000",
+			"userGid": "1000",
+			"upgradePackages": true
+		}
+	}
+}

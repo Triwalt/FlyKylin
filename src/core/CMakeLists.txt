@@ -16,14 +16,22 @@ set(CORE_SOURCES
     # Adapters模块
     adapters/ProtobufSerializer.cpp
     adapters/ProtobufSerializer.h
+
+    # Database模块
+    database/DatabaseService.cpp
+    database/DatabaseService.h
     
     # Communication模块
     communication/PeerDiscovery.cpp
     communication/PeerDiscovery.h
+    communication/NetworkInterfaceCache.cpp
+    communication/NetworkInterfaceCache.h
     communication/RetryStrategy.cpp
     communication/RetryStrategy.h
     communication/TcpConnection.cpp
     communication/TcpConnection.h
+    communication/TcpServer.cpp
+    communication/TcpServer.h
     communication/MessageQueue.cpp
     communication/MessageQueue.h
     communication/TcpConnectionManager.cpp
@@ -34,6 +42,8 @@ set(CORE_SOURCES
     services/MessageService.h
     services/LocalEchoService.cpp
     services/LocalEchoService.h
+    services/FileTransferService.cpp
+    services/FileTransferService.h
 )
 
 # 暂时禁用Protobuf（等待安装）
@@ -50,6 +60,7 @@ target_include_directories(flykylin_core PUBLIC
 target_link_libraries(flykylin_core PUBLIC
     Qt6::Core
     Qt6::Network
+    Qt6::Sql
     flykylin_protocol
 )
 

@@ -14,6 +14,9 @@
 #include <QTimer>
 
 namespace flykylin {
+namespace core {
+    class PeerNode;
+}
 namespace communication {
 
 /**
@@ -33,6 +36,14 @@ public:
      * @brief Get singleton instance
      */
     static TcpConnectionManager* instance();
+    
+    /**
+     * @brief Setup PeerDiscovery integration
+     * @param peerDiscovery PeerDiscovery instance to monitor
+     * 
+     * Automatically connects to discovered peers via peerDiscovered signal
+     */
+    void setupPeerDiscovery(QObject* peerDiscovery);
     
     /**
      * @brief Connect to a peer
@@ -70,6 +81,13 @@ public:
      */
     int activeConnectionCount() const;
     
+    /**
+     * @brief Register an incoming TCP connection accepted by TcpServer
+     * @param peerId Peer user ID (typically derived from peer IP)
+     * @param socket Existing QTcpSocket that is already connected
+     */
+    void addIncomingConnection(const QString& peerId, QTcpSocket* socket);
+
 signals:
     /**
      * @brief Connection state changed
@@ -104,7 +122,9 @@ private slots:
     void onMessageFailed(quint64 messageId, QString error);
     void cleanupIdleConnections();
     void processMessageQueue(const QString& peerId);
-    
+    void onPeerDiscovered(const flykylin::core::PeerNode& node);
+    void onPeerOffline(const QString& userId);
+
 private:
     TcpConnection* getOrCreateConnection(const QString& peerId, 
                                         const QString& ip, 

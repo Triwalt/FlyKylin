@@ -6,8 +6,10 @@
  */
 
 #include "LocalEchoService.h"
-#include <QDateTime>
+#include "../models/Message.h"
+#include "../config/UserProfile.h"
 #include <QDebug>
+#include <QDateTime>
 #include <QRandomGenerator>
 
 namespace flykylin {
@@ -65,7 +67,7 @@ void LocalEchoService::onEchoTimerTimeout()
     core::Message echoMessage;
     echoMessage.setId(QString::number(QDateTime::currentMSecsSinceEpoch()));
     echoMessage.setFromUserId(getEchoBotId());
-    echoMessage.setToUserId("local_user"); // TODO: Get real local user ID
+    echoMessage.setToUserId(core::UserProfile::instance().userId());
     echoMessage.setTimestamp(QDateTime::currentDateTime());
     
     // Echo back with a prefix

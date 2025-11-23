@@ -56,15 +56,17 @@ public:
     
     /**
      * @brief 获取用户配置
-     * @return UserProfile 用户配置对象
+     * @return flykylin::core::UserProfile& 用户配置对象引用
+     * @deprecated Use flykylin::core::UserProfile::instance() instead
      */
-    UserProfile userProfile() const;
+    const flykylin::core::UserProfile& userProfile() const;
     
     /**
      * @brief 设置用户配置
      * @param profile 用户配置对象
+     * @deprecated Use flykylin::core::UserProfile::instance() methods instead
      */
-    void setUserProfile(const UserProfile& profile);
+    void setUserProfile(const flykylin::core::UserProfile& profile);
     
     /**
      * @brief 获取配置文件路径
@@ -156,9 +158,10 @@ private:
     static ConfigManager* s_instance;  ///< 单例实例
     static QMutex s_mutex;             ///< 实例创建互斥锁
     
-    UserProfile m_userProfile;         ///< 用户配置
+    // NOTE: UserProfile is now a singleton, ConfigManager is deprecated
+    // UserProfile m_userProfile;      ///< DEPRECATED: Use UserProfile::instance()
     QString m_configPath;              ///< 配置文件路径
-    mutable QMutex m_profileMutex;     ///< 配置访问互斥锁
+    mutable QMutex m_profileMutex;     ///< 配置访问互斥锁（已废弃）
 };
 
 } // namespace Config

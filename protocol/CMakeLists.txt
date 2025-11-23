@@ -1,6 +1,7 @@
 # Protocol library for Protobuf generated code
 
-find_package(Protobuf CONFIG REQUIRED)
+# Protobuf, absl and utf8_range are discovered in the top-level CMakeLists.
+# Here we only define the protocol library and its link dependencies.
 
 # Generate C++ code from .proto files
 set(PROTO_FILES
@@ -10,10 +11,12 @@ set(PROTO_FILES
 # Use modern protobuf_generate
 add_library(flykylin_protocol STATIC ${PROTO_FILES})
 
-# Protobuf已经包含了Abseil依赖，但需要显式链接
+# Protobuf依赖Abseil和utf8_range，这里显式链接所需组件
 target_link_libraries(flykylin_protocol 
     PUBLIC 
         protobuf::libprotobuf
+        absl::log
+        utf8_range::utf8_range
 )
 
 target_include_directories(flykylin_protocol

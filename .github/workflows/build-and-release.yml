@@ -68,19 +68,16 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build -G Ninja `
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-          -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} `
+        cmake --preset windows-release `
           -DQt6_DIR="$env:Qt6_DIR" `
-          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
-          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
     
     - name: Build
-      run: cmake --build build --config ${{ env.BUILD_TYPE }} -j4
+      run: cmake --build --preset windows-release --parallel
     
     - name: Run tests
       run: |
-        cd build
+        cd build/windows-release
         ctest -C ${{ env.BUILD_TYPE }} --output-on-failure
     
     - name: Package
@@ -94,7 +91,7 @@ jobs:
         $PACKAGE_DIR = "package/$PACKAGE_NAME"
         
         New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
-        Copy-Item "build/bin/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        Copy-Item "build/windows-release/bin/Release/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies
         & "$env:QT_ROOT_DIR/bin/windeployqt.exe" `
@@ -163,16 +160,13 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build -G Ninja `
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-          -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} `
+        cmake --preset windows-release `
           -DVCPKG_TARGET_TRIPLET=arm64-windows `
           -DQt6_DIR="$env:Qt6_DIR" `
-          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
-          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
     
     - name: Build
-      run: cmake --build build --config ${{ env.BUILD_TYPE }} -j4
+      run: cmake --build --preset windows-release --parallel
     
     # Note: Cannot run tests on ARM64 build machine
     - name: Package
@@ -186,7 +180,7 @@ jobs:
         $PACKAGE_DIR = "package/$PACKAGE_NAME"
         
         New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
-        Copy-Item "build/bin/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        Copy-Item "build/windows-release/bin/Release/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies (use host tools for ARM64 cross-compile)
         $windeployqt = if ($env:QT_HOST_PATH) { "$env:QT_HOST_PATH/bin/windeployqt.exe" } else { "$env:QT_ROOT_DIR/bin/windeployqt.exe" }
@@ -258,19 +252,16 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build -G Ninja \
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-          -DVCPKG_BUILD_TYPE=${{ env.VCPKG_BUILD_TYPE }} \
+        cmake --preset linux-amd64-release \
           -DQt6_DIR="$Qt6_DIR" \
-          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" \
-          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
     
     - name: Build
-      run: cmake --build build -j$(nproc)
+      run: cmake --build --preset linux-amd64-release
     
     - name: Run tests
       run: |
-        cd build
+        cd build/linux-amd64-release
         ctest --output-on-failure
     
     - name: Package
@@ -285,7 +276,7 @@ jobs:
         PACKAGE_DIR="package/${PACKAGE_NAME}"
         
         mkdir -p "$PACKAGE_DIR"
-        cp build/bin/FlyKylin "$PACKAGE_DIR/"
+        cp build/linux-amd64-release/bin/FlyKylin "$PACKAGE_DIR/"
         
         # Copy Qt libraries
         mkdir -p "$PACKAGE_DIR/lib"
@@ -386,13 +377,15 @@ jobs:
             
             echo "==== Building project ===="
             cd /workspace
-            cmake -B build -G Ninja \
-              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-              -DVCPKG_BUILD_TYPE=${VCPKG_BUILD_TYPE} \
+            cmake --preset linux-arm64-release \
               -DQt6_DIR="${Qt6_DIR}" \
-              -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}" \
-              -DCMAKE_TOOLCHAIN_FILE=/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake
-            cmake --build build -j$(nproc)
+              -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}"
+            cmake --build --preset linux-arm64-release
+
+            echo "==== Running tests (linux-arm64-release) ===="
+            cd /workspace/build/linux-arm64-release
+            ctest --output-on-failure
+            cd /workspace
             
             echo "==== Packaging ===="
             VERSION_TAG="${VERSION}"
@@ -405,7 +398,10 @@ jobs:
             PACKAGE_DIR="/workspace/package/${PACKAGE_NAME}"
             
             mkdir -p "${PACKAGE_DIR}"
-            cp build/bin/FlyKylin "${PACKAGE_DIR}/"
+            cp build/linux-arm64-release/bin/FlyKylin "${PACKAGE_DIR}/"
+
+            mkdir -p "${PACKAGE_DIR}/lib"
+            cp -P ${QT_ROOT_DIR}/lib/libQt6*.so* "${PACKAGE_DIR}/lib/" || true
             
             echo "#!/bin/bash" > "${PACKAGE_DIR}/FlyKylin.sh"
             echo "DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"" >> "${PACKAGE_DIR}/FlyKylin.sh"

@@ -6,10 +6,13 @@
  */
 
 #include "ChatWindow.h"
+#include "../../core/config/UserProfile.h"
 #include <QCloseEvent>
 #include <QScrollBar>
 #include <QDateTime>
 #include <QDebug>
+#include <QFileDialog>
+#include <QPixmap>
 
 namespace flykylin {
 namespace ui {
@@ -23,6 +26,8 @@ ChatWindow::ChatWindow(QWidget* parent)
     , m_messageLayout(nullptr)
     , m_inputEdit(nullptr)
     , m_sendButton(nullptr)
+    , m_imageButton(nullptr)
+    , m_fileButton(nullptr)
     , m_viewModel(nullptr)
 {
     setupUI();
@@ -85,7 +90,14 @@ void ChatWindow::setupUI() {
     m_inputEdit->setMinimumHeight(40);
     inputLayout->addWidget(m_inputEdit, 1);
     
-    // Send button
+    m_imageButton = new QPushButton("Img", this);
+    m_imageButton->setFixedWidth(60);
+    inputLayout->addWidget(m_imageButton);
+
+    m_fileButton = new QPushButton("File", this);
+    m_fileButton->setFixedWidth(60);
+    inputLayout->addWidget(m_fileButton);
+
     m_sendButton = new QPushButton("Send", this);
     m_sendButton->setFixedWidth(80);
     m_sendButton->setStyleSheet(
@@ -117,6 +129,10 @@ void ChatWindow::connectSignals() {
     // Send button clicked
     connect(m_sendButton, &QPushButton::clicked,
             this, &ChatWindow::onSendButtonClicked);
+    connect(m_imageButton, &QPushButton::clicked,
+            this, &ChatWindow::onSendImageButtonClicked);
+    connect(m_fileButton, &QPushButton::clicked,
+            this, &ChatWindow::onSendFileButtonClicked);
     
     // ViewModel signals
     connect(m_viewModel, &ui::ChatViewModel::messagesUpdated,
@@ -182,6 +198,35 @@ void ChatWindow::onSendButtonClicked() {
     qDebug() << "[ChatWindow] Sent message:" << text.left(20) << "...";
 }
 
+void ChatWindow::onSendImageButtonClicked() {
+    if (m_currentPeerId.isEmpty()) {
+        qWarning() << "[ChatWindow] No peer selected for image";
+        return;
+    }
+
+    QString filter = tr("Images (*.png *.jpg *.jpeg *.gif *.bmp);;All Files (*.*)");
+    QString filePath = QFileDialog::getOpenFileName(this, tr("Select image"), QString(), filter);
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    m_viewModel->sendImage(filePath);
+}
+
+void ChatWindow::onSendFileButtonClicked() {
+    if (m_currentPeerId.isEmpty()) {
+        qWarning() << "[ChatWindow] No peer selected for file";
+        return;
+    }
+
+    QString filePath = QFileDialog::getOpenFileName(this, tr("Select file"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    m_viewModel->sendFile(filePath);
+}
+
 void ChatWindow::onMessagesUpdated() {
     qDebug() << "[ChatWindow] Messages updated, refreshing";
     refreshMessageList();
@@ -238,9 +283,9 @@ void ChatWindow::scrollToBottom() {
 }
 
 void ChatWindow::addMessageBubble(const flykylin::core::Message& message) {
-    // Determine if this is a sent or received message
-    // TODO: Get local user ID properly
-    bool isSent = (message.fromUserId() != m_currentPeerId);
+    // Determine if this is a sent or received message based on local user ID
+    const QString localUserId = core::UserProfile::instance().userId();
+    bool isSent = (message.fromUserId() == localUserId);
     
     // Create container widget for this message
     QWidget* messageWidget = new QWidget(m_messageContainer);
@@ -259,31 +304,56 @@ void ChatWindow::addMessageBubble(const flykylin::core::Message& message) {
     verticalLayout->setContentsMargins(0, 0, 0, 0);
     verticalLayout->setSpacing(2);
     
-    // Message bubble (label)
-    QLabel* bubbleLabel = new QLabel(message.content(), bubbleContainer);
-    bubbleLabel->setWordWrap(true);
-    bubbleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    QLabel* bubbleLabel = new QLabel(bubbleContainer);
     bubbleLabel->setMaximumWidth(350);
-    
-    // Style based on sent/received
-    if (isSent) {
+
+    if (message.kind() == flykylin::core::MessageKind::Image) {
+        QPixmap pix(message.attachmentLocalPath());
+        if (!pix.isNull()) {
+            if (pix.width() > 260) {
+                pix = pix.scaledToWidth(260, Qt::SmoothTransformation);
+            }
+            bubbleLabel->setPixmap(pix);
+        } else {
+            bubbleLabel->setText(message.attachmentName());
+            bubbleLabel->setWordWrap(true);
+            bubbleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        }
+    } else if (message.kind() == flykylin::core::MessageKind::File) {
+        bubbleLabel->setText(message.attachmentName());
+        bubbleLabel->setWordWrap(true);
+        bubbleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
         bubbleLabel->setStyleSheet(
             "QLabel {"
-            "   background-color: #0078d4;"
-            "   color: white;"
-            "   border-radius: 10px;"
-            "   padding: 8px 12px;"
+            "   background-color: #f5f5f5;"
+            "   color: black;"
+            "   border-radius: 6px;"
+            "   padding: 6px 10px;"
             "}"
         );
     } else {
-        bubbleLabel->setStyleSheet(
-            "QLabel {"
-            "   background-color: #e5e5e5;"
-            "   color: black;"
-            "   border-radius: 10px;"
-            "   padding: 8px 12px;"
-            "}"
-        );
+        bubbleLabel->setText(message.content());
+        bubbleLabel->setWordWrap(true);
+        bubbleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        if (isSent) {
+            bubbleLabel->setStyleSheet(
+                "QLabel {"
+                "   background-color: #0078d4;"
+                "   color: white;"
+                "   border-radius: 10px;"
+                "   padding: 8px 12px;"
+                "}"
+            );
+        } else {
+            bubbleLabel->setStyleSheet(
+                "QLabel {"
+                "   background-color: #e5e5e5;"
+                "   color: black;"
+                "   border-radius: 10px;"
+                "   padding: 8px 12px;"
+                "}"
+            );
+        }
     }
     
     // Add timestamp (small label below bubble)

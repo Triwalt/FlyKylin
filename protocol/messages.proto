@@ -58,6 +58,7 @@ message FileTransferRequest {
   uint64 file_size = 5;         // 文件大小（字节）
   string file_hash = 6;         // 文件SHA256哈希
   uint64 timestamp = 7;         // 请求时间戳
+  string mime_type = 8;         // MIME类型（如 image/png, application/pdf）
 }
 
 // 文件传输响应
@@ -85,6 +86,23 @@ message MessageAck {
   uint64 timestamp = 4;         // 确认时间戳
 }
 
+// 握手请求（TCP连接建立后的认证）
+message HandshakeRequest {
+  string protocol_version = 1;  // 协议版本（"1.0"）
+  string user_id = 2;           // 发起方用户ID（UUID）
+  string user_name = 3;         // 发起方用户名
+  uint64 timestamp = 4;         // 握手时间戳
+}
+
+// 握手响应
+message HandshakeResponse {
+  bool accepted = 1;            // 是否接受连接
+  string user_id = 2;           // 响应方用户ID（UUID）
+  string user_name = 3;         // 响应方用户名
+  string error_message = 4;     // 错误信息（如果拒绝）
+  uint64 timestamp = 5;         // 响应时间戳
+}
+
 // TCP消息包装器（所有TCP消息的外层封装）
 message TcpMessage {
   enum MessageType {
@@ -95,6 +113,8 @@ message TcpMessage {
     PING = 4;                   // Ping（保活）
     PONG = 5;                   // Pong（回应）
     ACK = 6;                    // 消息确认
+    HANDSHAKE_REQUEST = 7;      // 握手请求
+    HANDSHAKE_RESPONSE = 8;     // 握手响应
   }
   
   uint32 protocol_version = 1;  // 协议版本号（当前为1）

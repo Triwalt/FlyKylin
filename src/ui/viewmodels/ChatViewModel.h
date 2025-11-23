@@ -8,7 +8,9 @@
 #pragma once
 
 #include <QObject>
+#include <QStandardItemModel>
 #include <QString>
+#include <QStringList>
 #include <QList>
 #include "core/models/Message.h"
 #include "core/services/MessageService.h"
@@ -27,10 +29,14 @@ namespace ui {
  */
 class ChatViewModel : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QStandardItemModel* messageModel READ messageModel CONSTANT)
+    Q_PROPERTY(QString currentPeerName READ getCurrentPeerName NOTIFY peerChanged)
     
 public:
     explicit ChatViewModel(QObject* parent = nullptr);
     ~ChatViewModel() override;
+
+    QStandardItemModel* messageModel() const { return m_messageModel; }
     
     /**
      * @brief Set current chat peer
@@ -38,6 +44,16 @@ public:
      * @param peerName Peer display name
      */
     void setCurrentPeer(const QString& peerId, const QString& peerName);
+
+    /**
+     * @brief Set current group chat (local pseudo group)
+     * @param groupId Group identifier
+     * @param groupName Group display name
+     * @param memberIds Member user IDs in this group
+     */
+    Q_INVOKABLE void setCurrentGroup(const QString& groupId,
+                                     const QString& groupName,
+                                     const QStringList& memberIds);
     
     /**
      * @brief Get current peer ID
@@ -58,7 +74,14 @@ public:
      * @brief Send text message to current peer
      * @param content Message content
      */
-    void sendMessage(const QString& content);
+    Q_INVOKABLE void sendMessage(const QString& content);
+    Q_INVOKABLE void sendImage(const QString& filePath);
+    Q_INVOKABLE void sendFile(const QString& filePath);
+
+    Q_INVOKABLE bool isGroupChat() const { return m_isGroupChat; }
+    Q_INVOKABLE QString getCurrentGroupId() const { return m_currentGroupId; }
+
+    Q_INVOKABLE void resetConversation();
     
     /**
      * @brief Clear chat history with current peer
@@ -113,12 +136,17 @@ private slots:
     
 private:
     void loadMessagesFromService();
+    void rebuildMessageModel();
     
     services::MessageService* m_messageService;
     
     QString m_currentPeerId;    ///< Current chat peer ID
-    QString m_currentPeerName;  ///< Current chat peer name
-    QList<core::Message> m_messages;  ///< Message list for current peer
+    QString m_currentPeerName;  ///< Current chat peer name or group name
+    bool m_isGroupChat{false};  ///< Whether current session is a group chat
+    QString m_currentGroupId;   ///< Current group ID (for group chats)
+    QStringList m_groupMembers; ///< Member user IDs in current group
+    QList<core::Message> m_messages;  ///< Message list for current peer or group
+    QStandardItemModel* m_messageModel; ///< Model for QML
 };
 
 } // namespace ui

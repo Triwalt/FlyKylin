@@ -16,7 +16,7 @@
 #include "core/models/Message.h"
 #include "core/communication/TcpConnectionManager.h"
 #include "LocalEchoService.h"
-#include "messages.pb.h"
+#include "FileTransferService.h"
 
 namespace flykylin {
 namespace services {
@@ -44,6 +44,8 @@ public:
      * @param content Message text content
      */
     void sendTextMessage(const QString& peerId, const QString& content);
+    void sendImageMessage(const QString& peerId, const QString& filePath);
+    void sendFileMessage(const QString& peerId, const QString& filePath);
     
     /**
      * @brief Get message history with a peer
@@ -85,7 +87,7 @@ private slots:
     
 private:
     // Protobuf conversion
-    QByteArray serializeTextMessage(const QString& content);
+    QByteArray serializeTextMessage(const core::Message& message);
     core::Message parseTextMessage(const QString& peerId, const QByteArray& data);
     
     // Message storage
@@ -100,9 +102,12 @@ private:
     // Pending messages (waiting for send confirmation): (peerId, messageId) -> message
     QMap<QPair<QString, quint64>, core::Message> m_pendingMessages;
     
+    // Local user info
     QString m_localUserId;  ///< Local user ID (from UserProfile)
     
+    // Echo service for testing
     LocalEchoService* m_echoService;  ///< Local echo service for testing
+    FileTransferService* m_fileTransferService;
 };
 
 } // namespace services

@@ -7,9 +7,13 @@
 
 #include "TcpConnection.h"
 #include "RetryStrategy.h"
+#include "../config/UserProfile.h"
 #include <QDataStream>
 #include <QHostAddress>
 #include <QDebug>
+#include <QNetworkProxy>
+#include <string>
+#include "messages.pb.h"
 
 namespace flykylin {
 namespace communication {
@@ -26,9 +30,17 @@ TcpConnection::TcpConnection(const QString& peerId,
     , m_socket(new QTcpSocket(this))
     , m_heartbeatTimer(new QTimer(this))
     , m_reconnectTimer(new QTimer(this))
+    , m_handshakeTimer(new QTimer(this))
     , m_retryCount(0)
     , m_nextSequence(0)
+    , m_handshakeState(HandshakeState::NotStarted)
+    , m_isIncoming(false)
 {
+    // Configure socket (disable any system proxy for raw TCP)
+    QNetworkProxy proxy;
+    proxy.setType(QNetworkProxy::NoProxy);
+    m_socket->setProxy(proxy);
+
     // Configure socket
     connect(m_socket, &QTcpSocket::connected, this, &TcpConnection::onConnected);
     connect(m_socket, &QTcpSocket::disconnected, this, &TcpConnection::onDisconnected);
@@ -43,7 +55,64 @@ TcpConnection::TcpConnection(const QString& peerId,
     m_reconnectTimer->setSingleShot(true);
     connect(m_reconnectTimer, &QTimer::timeout, this, &TcpConnection::onReconnectTimeout);
     
+    // Configure handshake timer (single-shot)
+    m_handshakeTimer->setSingleShot(true);
+    m_handshakeTimer->setInterval(kHandshakeTimeout);
+    connect(m_handshakeTimer, &QTimer::timeout, this, &TcpConnection::onHandshakeTimeout);
+    
     qInfo() << "[TcpConnection]" << m_peerId << "created";
+}
+
+TcpConnection::TcpConnection(const QString& peerId,
+                             QTcpSocket* existingSocket,
+                             QObject* parent)
+    : QObject(parent)
+    , m_peerId(peerId)
+    , m_peerIp(existingSocket ? existingSocket->peerAddress().toString() : QString())
+    , m_peerPort(existingSocket ? static_cast<quint16>(existingSocket->peerPort()) : 0)
+    , m_state(ConnectionState::Connected)
+    , m_socket(existingSocket)
+    , m_heartbeatTimer(new QTimer(this))
+    , m_reconnectTimer(new QTimer(this))
+    , m_handshakeTimer(new QTimer(this))
+    , m_retryCount(0)
+    , m_nextSequence(0)
+    , m_handshakeState(HandshakeState::NotStarted)
+    , m_isIncoming(true)
+{
+    if (m_socket) {
+        m_socket->setParent(this);
+
+        // Disable any system proxy for raw TCP
+        QNetworkProxy proxy;
+        proxy.setType(QNetworkProxy::NoProxy);
+        m_socket->setProxy(proxy);
+
+        connect(m_socket, &QTcpSocket::connected, this, &TcpConnection::onConnected);
+        connect(m_socket, &QTcpSocket::disconnected, this, &TcpConnection::onDisconnected);
+        connect(m_socket, &QTcpSocket::readyRead, this, &TcpConnection::onReadyRead);
+        connect(m_socket, &QTcpSocket::errorOccurred, this, &TcpConnection::onSocketError);
+
+        m_lastActivity = QDateTime::currentDateTime();
+    } else {
+        m_state = ConnectionState::Failed;
+    }
+
+    // Configure heartbeat timer
+    m_heartbeatTimer->setInterval(kHeartbeatInterval);
+    connect(m_heartbeatTimer, &QTimer::timeout, this, &TcpConnection::onHeartbeatTimeout);
+
+    // Configure reconnect timer (single-shot)
+    m_reconnectTimer->setSingleShot(true);
+    connect(m_reconnectTimer, &QTimer::timeout, this, &TcpConnection::onReconnectTimeout);
+
+    // Configure handshake timer (single-shot)
+    m_handshakeTimer->setSingleShot(true);
+    m_handshakeTimer->setInterval(kHandshakeTimeout);
+    connect(m_handshakeTimer, &QTimer::timeout, this, &TcpConnection::onHandshakeTimeout);
+
+    qInfo() << "[TcpConnection]" << m_peerId << "created (incoming) from"
+            << m_peerIp << ":" << m_peerPort;
 }
 
 TcpConnection::~TcpConnection() {
@@ -84,6 +153,14 @@ void TcpConnection::disconnectFromHost() {
 void TcpConnection::sendMessage(const QByteArray& data) {
     if (m_state != ConnectionState::Connected) {
         QString error = QString("Cannot send: not connected (state=%1)").arg(static_cast<int>(m_state));
+        qWarning() << "[TcpConnection]" << m_peerId << error;
+        emit messageFailed(m_nextSequence, error);
+        return;
+    }
+    
+    // Check handshake completed
+    if (m_handshakeState != HandshakeState::Completed) {
+        QString error = QString("Cannot send: handshake not completed (state=%1)").arg(static_cast<int>(m_handshakeState));
         qWarning() << "[TcpConnection]" << m_peerId << error;
         emit messageFailed(m_nextSequence, error);
         return;
@@ -136,8 +213,10 @@ void TcpConnection::onConnected() {
     setState(ConnectionState::Connected, "Connected");
     m_retryCount = 0;
     m_lastActivity = QDateTime::currentDateTime();
-    
-    startHeartbeat();
+
+    // Start protobuf-based handshake
+    m_handshakeState = HandshakeState::NotStarted;
+    startHandshake();
 }
 
 void TcpConnection::onDisconnected() {
@@ -267,7 +346,9 @@ void TcpConnection::processIncomingData() {
         m_receiveBuffer.remove(0, messageLength);
         
         qDebug() << "[TcpConnection]" << m_peerId << "message received, size=" << messageData.size();
-        emit messageReceived(messageData);
+        
+        // Process TcpMessage
+        processTcpMessage(messageData);
     }
 }
 
@@ -278,6 +359,256 @@ quint32 TcpConnection::readMessageLength() {
     quint32 length = 0;
     stream >> length;
     return length;
+}
+
+void TcpConnection::processTcpMessage(const QByteArray& messageData) {
+    flykylin::protocol::TcpMessage tcpMessage;
+    if (!tcpMessage.ParseFromArray(messageData.constData(), messageData.size())) {
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Failed to parse TcpMessage, size=" << messageData.size();
+        return;
+    }
+
+    switch (tcpMessage.type()) {
+    case flykylin::protocol::TcpMessage::HANDSHAKE_REQUEST: {
+        QByteArray payload = QByteArray::fromStdString(tcpMessage.payload());
+        handleHandshakeRequest(payload);
+        break;
+    }
+    case flykylin::protocol::TcpMessage::HANDSHAKE_RESPONSE: {
+        QByteArray payload = QByteArray::fromStdString(tcpMessage.payload());
+        handleHandshakeResponse(payload);
+        break;
+    }
+    default:
+        // Application-level message; require handshake to be completed
+        if (m_handshakeState != HandshakeState::Completed) {
+            qWarning() << "[TcpConnection]" << m_peerId
+                       << "Received application message before handshake completed, type="
+                       << tcpMessage.type();
+            return;
+        }
+
+        // Forward the raw TcpMessage bytes to upper layers (MessageService expects this)
+        emit messageReceived(messageData);
+        break;
+    }
+}
+
+void TcpConnection::startHandshake() {
+    if (m_handshakeState == HandshakeState::Completed) {
+        qDebug() << "[TcpConnection]" << m_peerId << "Handshake already completed, skip";
+        return;
+    }
+
+    qInfo() << "[TcpConnection]" << m_peerId << "Starting protobuf handshake";
+
+    m_handshakeState = HandshakeState::RequestSent;
+    sendHandshakeRequest();
+    m_handshakeTimer->start();
+}
+
+void TcpConnection::sendHandshakeRequest() {
+    if (m_state != ConnectionState::Connected) {
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Cannot send handshake request: not connected";
+        return;
+    }
+
+    const auto& profile = core::UserProfile::instance();
+
+    flykylin::protocol::HandshakeRequest request;
+    request.set_protocol_version("1.0");
+    request.set_user_id(profile.userId().toStdString());
+    request.set_user_name(profile.userName().toStdString());
+    request.set_timestamp(QDateTime::currentMSecsSinceEpoch());
+
+    std::string payload;
+    if (!request.SerializeToString(&payload)) {
+        qCritical() << "[TcpConnection]" << m_peerId
+                    << "Failed to serialize HandshakeRequest";
+        m_handshakeState = HandshakeState::Failed;
+        emit handshakeFailed(QStringLiteral("Failed to serialize handshake request"));
+        return;
+    }
+
+    flykylin::protocol::TcpMessage tcpMessage;
+    tcpMessage.set_protocol_version(1);
+    tcpMessage.set_type(flykylin::protocol::TcpMessage::HANDSHAKE_REQUEST);
+    tcpMessage.set_sequence(0);  // Sequence not used yet
+    tcpMessage.set_payload(payload);
+    tcpMessage.set_timestamp(QDateTime::currentMSecsSinceEpoch());
+
+    QByteArray data(tcpMessage.ByteSizeLong(), Qt::Uninitialized);
+    if (!tcpMessage.SerializeToArray(data.data(), data.size())) {
+        qCritical() << "[TcpConnection]" << m_peerId
+                    << "Failed to serialize TcpMessage for handshake request";
+        m_handshakeState = HandshakeState::Failed;
+        emit handshakeFailed(QStringLiteral("Failed to serialize handshake request wrapper"));
+        return;
+    }
+
+    // Send as framed message: [4-byte length][protobuf payload]
+    QByteArray frame;
+    QDataStream stream(&frame, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::BigEndian);
+    stream << static_cast<quint32>(data.size());
+    frame.append(data);
+
+    qint64 written = m_socket->write(frame);
+    if (written == -1) {
+        QString error = QString("Failed to send handshake request: %1").arg(m_socket->errorString());
+        qCritical() << "[TcpConnection]" << m_peerId << error;
+        m_handshakeState = HandshakeState::Failed;
+        emit handshakeFailed(error);
+        return;
+    }
+
+    m_socket->flush();
+    m_lastActivity = QDateTime::currentDateTime();
+
+    qInfo() << "[TcpConnection]" << m_peerId
+            << "Handshake request sent, size=" << data.size() << "bytes";
+}
+
+void TcpConnection::sendHandshakeResponse(bool accepted, const QString& errorMsg) {
+    if (m_state != ConnectionState::Connected) {
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Cannot send handshake response: not connected";
+        return;
+    }
+
+    const auto& profile = core::UserProfile::instance();
+
+    flykylin::protocol::HandshakeResponse response;
+    response.set_accepted(accepted);
+    response.set_user_id(profile.userId().toStdString());
+    response.set_user_name(profile.userName().toStdString());
+    response.set_error_message(errorMsg.toStdString());
+    response.set_timestamp(QDateTime::currentMSecsSinceEpoch());
+
+    std::string payload;
+    if (!response.SerializeToString(&payload)) {
+        qCritical() << "[TcpConnection]" << m_peerId
+                    << "Failed to serialize HandshakeResponse";
+        emit handshakeFailed(QStringLiteral("Failed to serialize handshake response"));
+        return;
+    }
+
+    flykylin::protocol::TcpMessage tcpMessage;
+    tcpMessage.set_protocol_version(1);
+    tcpMessage.set_type(flykylin::protocol::TcpMessage::HANDSHAKE_RESPONSE);
+    tcpMessage.set_sequence(0);
+    tcpMessage.set_payload(payload);
+    tcpMessage.set_timestamp(QDateTime::currentMSecsSinceEpoch());
+
+    QByteArray data(tcpMessage.ByteSizeLong(), Qt::Uninitialized);
+    if (!tcpMessage.SerializeToArray(data.data(), data.size())) {
+        qCritical() << "[TcpConnection]" << m_peerId
+                    << "Failed to serialize TcpMessage for handshake response";
+        emit handshakeFailed(QStringLiteral("Failed to serialize handshake response wrapper"));
+        return;
+    }
+
+    QByteArray frame;
+    QDataStream stream(&frame, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::BigEndian);
+    stream << static_cast<quint32>(data.size());
+    frame.append(data);
+
+    qint64 written = m_socket->write(frame);
+    if (written == -1) {
+        QString error = QString("Failed to send handshake response: %1").arg(m_socket->errorString());
+        qCritical() << "[TcpConnection]" << m_peerId << error;
+        emit handshakeFailed(error);
+        return;
+    }
+
+    m_socket->flush();
+    m_lastActivity = QDateTime::currentDateTime();
+
+    qInfo() << "[TcpConnection]" << m_peerId
+            << "Handshake response sent, accepted=" << accepted;
+}
+
+void TcpConnection::handleHandshakeRequest(const QByteArray& payload) {
+    flykylin::protocol::HandshakeRequest request;
+    if (!request.ParseFromArray(payload.constData(), payload.size())) {
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Failed to parse HandshakeRequest, payload size=" << payload.size();
+        return;
+    }
+
+    m_peerName = QString::fromStdString(request.user_name());
+
+    qInfo() << "[TcpConnection]" << m_peerId
+            << "Received handshake request from peer_name=" << m_peerName
+            << "protocol=" << QString::fromStdString(request.protocol_version());
+
+    // For now we always accept; policy checks can be added here later.
+    sendHandshakeResponse(true, QString());
+
+    if (m_handshakeState != HandshakeState::Completed) {
+        m_handshakeState = HandshakeState::Completed;
+        startHeartbeat();
+        emit handshakeCompleted();
+    }
+}
+
+void TcpConnection::handleHandshakeResponse(const QByteArray& payload) {
+    flykylin::protocol::HandshakeResponse response;
+    if (!response.ParseFromArray(payload.constData(), payload.size())) {
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Failed to parse HandshakeResponse, payload size=" << payload.size();
+        return;
+    }
+
+    m_handshakeTimer->stop();
+    m_peerName = QString::fromStdString(response.user_name());
+
+    if (!response.accepted()) {
+        QString error = QString::fromStdString(response.error_message());
+        if (error.isEmpty()) {
+            error = QStringLiteral("Handshake rejected by peer");
+        }
+
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Handshake rejected by peer, error=" << error;
+
+        m_handshakeState = HandshakeState::Failed;
+        emit handshakeFailed(error);
+        disconnectFromHost();
+        return;
+    }
+
+    if (m_handshakeState == HandshakeState::Completed) {
+        // Duplicate response; ignore.
+        return;
+    }
+
+    m_handshakeState = HandshakeState::Completed;
+
+    qInfo() << "[TcpConnection]" << m_peerId
+            << "Handshake completed with peer_name=" << m_peerName;
+
+    startHeartbeat();
+    emit handshakeCompleted();
+}
+
+void TcpConnection::onHandshakeTimeout() {
+    if (m_handshakeState == HandshakeState::Completed ||
+        m_handshakeState == HandshakeState::Failed) {
+        return;
+    }
+
+    QString error = QStringLiteral("Handshake timeout");
+    qWarning() << "[TcpConnection]" << m_peerId << error;
+
+    m_handshakeState = HandshakeState::Failed;
+    emit handshakeFailed(error);
+
+    // Close the connection; caller can decide whether to reconnect.
+    disconnectFromHost();
 }
 
 } // namespace communication

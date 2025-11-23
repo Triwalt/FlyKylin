@@ -14,6 +14,9 @@
 #include <optional>
 #include <string>
 
+#include "core/models/PeerNode.h"
+#include "core/models/Message.h"
+
 namespace flykylin {
 
 // 前向声明核心数据模型

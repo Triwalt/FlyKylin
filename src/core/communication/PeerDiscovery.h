@@ -19,8 +19,11 @@
 
 // 前向声明
 namespace flykylin {
-namespace adapters {
-    class ProtobufSerializer;
+namespace ports {
+    class I_MessageSerializer;
+}
+namespace communication {
+    class NetworkInterfaceCache;
 }
 }
 
@@ -149,7 +152,8 @@ private:
     QMap<QString, PeerNode> m_peers;            ///< userId -> PeerNode
     QMap<QString, QDateTime> m_lastSeen;        ///< userId -> 最后心跳时间
     
-    std::unique_ptr<flykylin::adapters::ProtobufSerializer> m_serializer;  ///< Protobuf序列化器
+    std::unique_ptr<flykylin::ports::I_MessageSerializer> m_serializer;  ///< Protobuf序列化器
+    flykylin::communication::NetworkInterfaceCache* m_networkCache;         ///< 网络接口缓存（性能优化）
     
     static constexpr int kBroadcastInterval = 5000;     ///< 广播间隔（毫秒）
     static constexpr int kTimeoutCheckInterval = 10000;  ///< 超时检测间隔（毫秒）

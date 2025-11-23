@@ -6,12 +6,19 @@
 #include "MainWindow.h"
 #include "ChatWindow.h"
 #include "../../core/communication/PeerDiscovery.h"
+#include "../../core/communication/TcpConnectionManager.h"
+#include "../../core/communication/TcpServer.h"
 #include "../../core/services/LocalEchoService.h"
+#include "../../core/config/UserProfile.h"
 #include "../viewmodels/PeerListViewModel.h"
 #include "../widgets/PeerListWidget.h"
 #include <QDebug>
 #include <QMessageBox>
 #include <QMap>
+#include <QFileDialog>
+#include <QSettings>
+#include <QStandardPaths>
+#include <QDir>
 
 namespace flykylin {
 namespace ui {
@@ -67,13 +74,33 @@ void MainWindow::setupUi()
     m_statusLabel->setStyleSheet("color: blue; padding: 5px; background-color: #f0f0f0;");
     m_statusLabel->setWordWrap(true);
     m_mainLayout->addWidget(m_statusLabel);
-    
+
+    // 下载目录设置按钮
+    m_settingsButton = new QPushButton("下载目录...", m_centralWidget);
+    m_settingsButton->setFixedWidth(120);
+    m_mainLayout->addWidget(m_settingsButton, 0, Qt::AlignRight);
+
     m_centralWidget->setLayout(m_mainLayout);
     setCentralWidget(m_centralWidget);
 }
 
 void MainWindow::setupServices()
 {
+    // 创建TCP服务器用于接受传入连接（仅由unique_ptr管理生命周期，不使用Qt父子关系）
+    m_tcpServer = std::make_unique<flykylin::communication::TcpServer>();
+
+    bool serverStarted = m_tcpServer->start(kTcpPort);
+    quint16 effectiveTcpPort = serverStarted ? m_tcpServer->listenPort() : 0;
+
+    if (!serverStarted || effectiveTcpPort == 0) {
+        qCritical() << "[MainWindow] Failed to start TcpServer on port" << kTcpPort;
+    }
+
+    // 为当前进程设置基于TCP端口的实例后缀，使同一设备上的多个实例拥有不同的userId
+    if (effectiveTcpPort != 0) {
+        core::UserProfile::instance().setInstanceSuffix(QString(":%1").arg(effectiveTcpPort));
+    }
+
     // 创建UDP节点发现服务
     m_peerDiscovery = std::make_unique<flykylin::core::PeerDiscovery>();
     
@@ -91,13 +118,18 @@ void MainWindow::setupServices()
     m_peerDiscovery->setLoopbackEnabled(true);
     qInfo() << "[MainWindow] Loopback mode enabled for development testing";
     
-    // 启动服务
-    bool started = m_peerDiscovery->start(kUdpPort, kTcpPort);
+    // 集成TcpConnectionManager - 自动连接发现的节点
+    flykylin::communication::TcpConnectionManager::instance()->setupPeerDiscovery(m_peerDiscovery.get());
+    qInfo() << "[MainWindow] TcpConnectionManager auto-connect enabled";
+    
+    // 启动服务（需要TCP服务器和PeerDiscovery都启动成功）
+    bool discoveryStarted = m_peerDiscovery->start(kUdpPort, effectiveTcpPort);
+    bool started = serverStarted && discoveryStarted;
     
     if (started) {
         QString statusText = QString("✓ 服务启动成功 | UDP端口: %1 | TCP端口: %2")
                                 .arg(kUdpPort)
-                                .arg(kTcpPort);
+                                .arg(effectiveTcpPort);
         m_statusLabel->setText(statusText);
         m_statusLabel->setStyleSheet("color: green; padding: 5px; background-color: #e8f5e9;");
         
@@ -139,6 +171,9 @@ void MainWindow::connectSignals()
                 qDebug() << "[MainWindow] User double-clicked:" << userId;
                 this->openChatWindow(userId);
             });
+
+    connect(m_settingsButton, &QPushButton::clicked,
+            this, &MainWindow::onSelectDownloadDirectory);
 }
 
 void MainWindow::onUserSelected(const QString& userId)
@@ -147,6 +182,32 @@ void MainWindow::onUserSelected(const QString& userId)
     
     // TODO: 更新UI显示选中用户信息
     // 当前Sprint 1仅实现节点发现和用户列表，后续Sprint实现聊天功能
+}
+
+void MainWindow::onSelectDownloadDirectory()
+{
+    QSettings settings("FlyKylin", "FlyKylin");
+    QString currentDir = settings.value("paths/downloadDirectory").toString();
+
+    if (currentDir.isEmpty()) {
+        QString baseDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+        if (baseDir.isEmpty()) {
+            baseDir = QDir::homePath();
+        }
+        currentDir = baseDir;
+    }
+
+    QString selectedDir = QFileDialog::getExistingDirectory(this,
+                                                            tr("选择下载目录"),
+                                                            currentDir);
+    if (selectedDir.isEmpty()) {
+        return;
+    }
+
+    settings.setValue("paths/downloadDirectory", selectedDir);
+    settings.sync();
+
+    qInfo() << "[MainWindow] Download directory set to" << selectedDir;
 }
 
 void MainWindow::openChatWindow(const QString& userId)

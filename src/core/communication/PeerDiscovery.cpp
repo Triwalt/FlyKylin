@@ -4,7 +4,9 @@
  */
 
 #include "PeerDiscovery.h"
+#include "NetworkInterfaceCache.h"
 #include "../adapters/ProtobufSerializer.h"
+#include "../config/UserProfile.h"
 #include <QHostAddress>
 #include <QHostInfo>
 #include <QNetworkDatagram>
@@ -24,13 +26,15 @@ PeerDiscovery::PeerDiscovery(QObject* parent)
     , m_isRunning(false)
     , m_loopbackEnabled(false)  // 默认禁用本地回环
     , m_serializer(std::make_unique<flykylin::adapters::ProtobufSerializer>())
+    , m_networkCache(new flykylin::communication::NetworkInterfaceCache(this, 30000))  // 30s refresh
 {
-    qDebug() << "[PeerDiscovery] Created with Protobuf serializer";
+    qDebug() << "[PeerDiscovery] Created with Protobuf serializer and network cache";
 }
 
 PeerDiscovery::~PeerDiscovery()
 {
     stop();
+    // m_networkCache is deleted automatically by Qt parent-child relationship
     qDebug() << "[PeerDiscovery] Destroyed";
 }
 
@@ -78,6 +82,10 @@ bool PeerDiscovery::start(quint16 udpPort, quint16 tcpPort)
     m_timeoutCheckTimer->start();
 
     m_isRunning = true;
+    
+    // 启动网络接口缓存（性能优化）
+    m_networkCache->start();
+    qInfo() << "[PeerDiscovery] Network interface cache started";
 
     // 立即发送一次上线广播
     sendBroadcast(1); // MSG_ONLINE = 1
@@ -140,16 +148,9 @@ void PeerDiscovery::onDatagramReceived()
         QHostAddress senderAddress = datagram.senderAddress();
         QByteArray data = datagram.data();
 
-        // 忽略自己发送的消息
-        QList<QHostAddress> localAddresses;
-        for (const QNetworkInterface& iface : QNetworkInterface::allInterfaces()) {
-            for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
-                localAddresses.append(entry.ip());
-            }
-        }
-        
+        // 忽略自己发送的消息（使用缓存优化性能）
         // 过滤本地地址（除非启用回环模式）
-        if (!m_loopbackEnabled && localAddresses.contains(senderAddress)) {
+        if (!m_loopbackEnabled && m_networkCache->isLocalAddress(senderAddress)) {
             continue; // 跳过本地地址
         }
 
@@ -165,11 +166,20 @@ void PeerDiscovery::sendBroadcast(int messageType)
     }
 
     // 构造当前节点信息
+    const auto& profile = flykylin::core::UserProfile::instance();
+
     PeerNode selfNode;
-    selfNode.setUserId("local");  // 发送时不重要，接收方会用IP替换
-    selfNode.setUserName(QHostInfo::localHostName());
+    // 使用稳定的UserProfile UUID作为全局唯一userId，避免同一IP多实例冲突
+    selfNode.setUserId(profile.userId());
+    // 用户名优先使用配置中的昵称，否则退回到主机名
+    QString localName = profile.userName();
+    if (localName.isEmpty()) {
+        localName = QHostInfo::localHostName();
+    }
+    selfNode.setUserName(localName);
     selfNode.setHostName(QHostInfo::localHostName());
-    selfNode.setIpAddress("0.0.0.0");  // 广播时不重要
+    // 广播包内的IP可以是占位，实际IP以接收端看到的senderAddress为准
+    selfNode.setIpAddress("0.0.0.0");
     selfNode.setTcpPort(m_tcpPort);
     selfNode.setLastSeen(QDateTime::currentDateTime());
     selfNode.setOnline(true);
@@ -232,11 +242,21 @@ void PeerDiscovery::processReceivedMessage(const QByteArray& datagram,
     }
 
     PeerNode node = nodeOpt.value();
-    
-    // 使用发送者IP作为userId
-    QString userId = senderAddress.toString();
-    node.setUserId(userId);
-    node.setIpAddress(userId);
+
+    // 使用广播中携带的userId作为全局唯一标识（来自对端UserProfile UUID 或实例ID）
+    QString userId = node.userId();
+
+    // 忽略自身实例发送的广播（避免单实例把自己当作远端节点）
+    const QString localUserId = UserProfile::instance().userId();
+    if (userId == localUserId) {
+        qDebug() << "[PeerDiscovery] Ignoring self broadcast from" << senderAddress
+                 << "userId=" << userId;
+        return;
+    }
+
+    // 使用实际发送者IP作为节点的当前IP地址
+    QString ipString = senderAddress.toString();
+    node.setIpAddress(ipString);
 
     qDebug() << "[PeerDiscovery] Received Protobuf message from" << userId 
              << "host:" << node.hostName()
@@ -259,11 +279,22 @@ void PeerDiscovery::processReceivedMessage(const QByteArray& datagram,
     } else {
         // MSG_ONLINE or MSG_HEARTBEAT
         bool isNewPeer = !m_peers.contains(userId);
-        
+        bool nameChanged = false;
+
+        if (!isNewPeer) {
+            const PeerNode& oldPeer = m_peers[userId];
+            nameChanged = (oldPeer.userName() != node.userName()) ||
+                          (oldPeer.hostName() != node.hostName());
+        }
+
         m_peers[userId] = node;
 
-        if (isNewPeer) {
-            qInfo() << "[PeerDiscovery] New peer discovered (Protobuf):" << userId << node.hostName();
+        if (isNewPeer || nameChanged) {
+            if (isNewPeer) {
+                qInfo() << "[PeerDiscovery] New peer discovered (Protobuf):" << userId << node.hostName();
+            } else {
+                qInfo() << "[PeerDiscovery] Peer updated (Protobuf):" << userId << node.userName();
+            }
             emit peerDiscovered(node);
         } else {
             emit peerHeartbeat(userId);
