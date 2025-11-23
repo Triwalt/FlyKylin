@@ -1,0 +1,490 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{4205FAF0-9DF1-3B6E-8CE0-2B45B730F153}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>FlyKylin</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Project\FlyKylin\build-verify\bin\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">FlyKylin.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">FlyKylin</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Project\FlyKylin\build-verify\bin\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">FlyKylin.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">FlyKylin</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">E:\Project\FlyKylin\build-verify\bin\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">FlyKylin.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">FlyKylin</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">E:\Project\FlyKylin\build-verify\bin\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">FlyKylin.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">FlyKylin</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_Debug;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtCore" /external:I "D:/Qt/6.9.3/msvc2022_64/include" /external:I "D:/Qt/6.9.3/msvc2022_64/mkspecs/win32-msvc" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtGui" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtWidgets" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtNetwork" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtSql" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtConcurrent" /external:I "D:/Anaconda/Library/include" /utf-8 -Zc:__cplusplus -utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_Debug;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_Debug;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PreBuildEvent>
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message>Automatic MOC and UIC for target FlyKylin</Message>
+      <Command>setlocal
+cd E:\Project\FlyKylin\build-verify\src
+if %errorlevel% neq 0 goto :cmEnd
+E:
+if %errorlevel% neq 0 goto :cmEnd
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -E cmake_autogen E:/Project/FlyKylin/build-verify/src/CMakeFiles/FlyKylin_autogen.dir/AutogenInfo.json Debug
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Message>Deploying Qt libraries for FlyKylin...</Message>
+      <Command>setlocal
+D:\Qt\6.9.3\msvc2022_64\bin\windeployqt.exe --no-translations --no-system-d3d-compiler --no-compiler-runtime --no-opengl-sw E:/Project/FlyKylin/build-verify/bin/Debug/FlyKylin.exe
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>D:\Qt\6.9.3\msvc2022_64\lib\Qt6Widgetsd.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Sqld.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Concurrentd.lib;..\lib\Debug\flykylin_core.lib;..\lib\Debug\flykylin_protocol.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Guid.lib;d3d11.lib;dxgi.lib;dxguid.lib;d3d12.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Networkd.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Cored.lib;mpr.lib;userenv.lib;ws2_32.lib;D:\Anaconda\Library\lib\libprotobuf.lib;D:\Anaconda\Library\lib\abseil_dll.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>E:/Project/FlyKylin/build-verify/lib/Debug/FlyKylin.lib</ImportLibrary>
+      <ProgramDataBaseFile>E:/Project/FlyKylin/build-verify/bin/Debug/FlyKylin.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_Release;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtCore" /external:I "D:/Qt/6.9.3/msvc2022_64/include" /external:I "D:/Qt/6.9.3/msvc2022_64/mkspecs/win32-msvc" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtGui" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtWidgets" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtNetwork" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtSql" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtConcurrent" /external:I "D:/Anaconda/Library/include" /utf-8 -Zc:__cplusplus -utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ConformanceMode>true</ConformanceMode>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;QT_NO_DEBUG;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;QT_NO_DEBUG;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_Release;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_Release;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PreBuildEvent>
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message>Automatic MOC and UIC for target FlyKylin</Message>
+      <Command>setlocal
+cd E:\Project\FlyKylin\build-verify\src
+if %errorlevel% neq 0 goto :cmEnd
+E:
+if %errorlevel% neq 0 goto :cmEnd
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -E cmake_autogen E:/Project/FlyKylin/build-verify/src/CMakeFiles/FlyKylin_autogen.dir/AutogenInfo.json Release
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Message>Deploying Qt libraries for FlyKylin...</Message>
+      <Command>setlocal
+D:\Qt\6.9.3\msvc2022_64\bin\windeployqt.exe --no-translations --no-system-d3d-compiler --no-compiler-runtime --no-opengl-sw E:/Project/FlyKylin/build-verify/bin/Release/FlyKylin.exe
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>D:\Qt\6.9.3\msvc2022_64\lib\Qt6Widgets.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Sql.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Concurrent.lib;..\lib\Release\flykylin_core.lib;..\lib\Release\flykylin_protocol.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Gui.lib;d3d11.lib;dxgi.lib;dxguid.lib;d3d12.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Network.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Core.lib;mpr.lib;userenv.lib;ws2_32.lib;D:\Anaconda\Library\lib\libprotobuf.lib;D:\Anaconda\Library\lib\abseil_dll.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>E:/Project/FlyKylin/build-verify/lib/Release/FlyKylin.lib</ImportLibrary>
+      <ProgramDataBaseFile>E:/Project/FlyKylin/build-verify/bin/Release/FlyKylin.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_MinSizeRel;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtCore" /external:I "D:/Qt/6.9.3/msvc2022_64/include" /external:I "D:/Qt/6.9.3/msvc2022_64/mkspecs/win32-msvc" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtGui" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtWidgets" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtNetwork" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtSql" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtConcurrent" /external:I "D:/Anaconda/Library/include" /utf-8 -Zc:__cplusplus -utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ConformanceMode>true</ConformanceMode>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;QT_NO_DEBUG;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;QT_NO_DEBUG;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_MinSizeRel;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_MinSizeRel;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PreBuildEvent>
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message>Automatic MOC and UIC for target FlyKylin</Message>
+      <Command>setlocal
+cd E:\Project\FlyKylin\build-verify\src
+if %errorlevel% neq 0 goto :cmEnd
+E:
+if %errorlevel% neq 0 goto :cmEnd
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -E cmake_autogen E:/Project/FlyKylin/build-verify/src/CMakeFiles/FlyKylin_autogen.dir/AutogenInfo.json MinSizeRel
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Message>Deploying Qt libraries for FlyKylin...</Message>
+      <Command>setlocal
+D:\Qt\6.9.3\msvc2022_64\bin\windeployqt.exe --no-translations --no-system-d3d-compiler --no-compiler-runtime --no-opengl-sw E:/Project/FlyKylin/build-verify/bin/MinSizeRel/FlyKylin.exe
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>D:\Qt\6.9.3\msvc2022_64\lib\Qt6Widgets.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Sql.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Concurrent.lib;..\lib\MinSizeRel\flykylin_core.lib;..\lib\MinSizeRel\flykylin_protocol.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Gui.lib;d3d11.lib;dxgi.lib;dxguid.lib;d3d12.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Network.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Core.lib;mpr.lib;userenv.lib;ws2_32.lib;D:\Anaconda\Library\lib\libprotobuf.lib;D:\Anaconda\Library\lib\abseil_dll.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>E:/Project/FlyKylin/build-verify/lib/MinSizeRel/FlyKylin.lib</ImportLibrary>
+      <ProgramDataBaseFile>E:/Project/FlyKylin/build-verify/bin/MinSizeRel/FlyKylin.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_RelWithDebInfo;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtCore" /external:I "D:/Qt/6.9.3/msvc2022_64/include" /external:I "D:/Qt/6.9.3/msvc2022_64/mkspecs/win32-msvc" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtGui" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtWidgets" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtNetwork" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtSql" /external:I "D:/Qt/6.9.3/msvc2022_64/include/QtConcurrent" /external:I "D:/Anaconda/Library/include" /utf-8 -Zc:__cplusplus -utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;QT_NO_DEBUG;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;Q_OS_WIN;QT_CORE_LIB;QT_NO_DEBUG;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;_WIN64;UNICODE;_UNICODE;QT_GUI_LIB;QT_WIDGETS_LIB;QT_NETWORK_LIB;QT_SQL_LIB;QT_CONCURRENT_LIB;PROTOBUF_USE_DLLS;ABSL_CONSUME_DLL;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_RelWithDebInfo;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\include_RelWithDebInfo;E:\Project\FlyKylin\src;E:\Project\FlyKylin\src\core;E:\Project\FlyKylin\src\platform;E:\Project\FlyKylin\src\ui;E:\Project\FlyKylin\build-verify\protocol;D:\Qt\6.9.3\msvc2022_64\include\QtCore;D:\Qt\6.9.3\msvc2022_64\include;D:\Qt\6.9.3\msvc2022_64\mkspecs\win32-msvc;D:\Qt\6.9.3\msvc2022_64\include\QtGui;D:\Qt\6.9.3\msvc2022_64\include\QtWidgets;D:\Qt\6.9.3\msvc2022_64\include\QtNetwork;D:\Qt\6.9.3\msvc2022_64\include\QtSql;D:\Qt\6.9.3\msvc2022_64\include\QtConcurrent;D:\Anaconda\Library\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PreBuildEvent>
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message>Automatic MOC and UIC for target FlyKylin</Message>
+      <Command>setlocal
+cd E:\Project\FlyKylin\build-verify\src
+if %errorlevel% neq 0 goto :cmEnd
+E:
+if %errorlevel% neq 0 goto :cmEnd
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -E cmake_autogen E:/Project/FlyKylin/build-verify/src/CMakeFiles/FlyKylin_autogen.dir/AutogenInfo.json RelWithDebInfo
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Message>Deploying Qt libraries for FlyKylin...</Message>
+      <Command>setlocal
+D:\Qt\6.9.3\msvc2022_64\bin\windeployqt.exe --no-translations --no-system-d3d-compiler --no-compiler-runtime --no-opengl-sw E:/Project/FlyKylin/build-verify/bin/RelWithDebInfo/FlyKylin.exe
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>D:\Qt\6.9.3\msvc2022_64\lib\Qt6Widgets.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Sql.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Concurrent.lib;..\lib\RelWithDebInfo\flykylin_core.lib;..\lib\RelWithDebInfo\flykylin_protocol.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Gui.lib;d3d11.lib;dxgi.lib;dxguid.lib;d3d12.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Network.lib;D:\Qt\6.9.3\msvc2022_64\lib\Qt6Core.lib;mpr.lib;userenv.lib;ws2_32.lib;D:\Anaconda\Library\lib\libprotobuf.lib;D:\Anaconda\Library\lib\abseil_dll.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>E:/Project/FlyKylin/build-verify/lib/RelWithDebInfo/FlyKylin.lib</ImportLibrary>
+      <ProgramDataBaseFile>E:/Project/FlyKylin/build-verify/bin/RelWithDebInfo/FlyKylin.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\Project\FlyKylin\src\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule E:/Project/FlyKylin/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -SE:/Project/FlyKylin -BE:/Project/FlyKylin/build-verify --check-stamp-file E:/Project/FlyKylin/build-verify/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Project\FlyKylin\build-verify\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule E:/Project/FlyKylin/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -SE:/Project/FlyKylin -BE:/Project/FlyKylin/build-verify --check-stamp-file E:/Project/FlyKylin/build-verify/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Project\FlyKylin\build-verify\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule E:/Project/FlyKylin/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -SE:/Project/FlyKylin -BE:/Project/FlyKylin/build-verify --check-stamp-file E:/Project/FlyKylin/build-verify/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">E:\Project\FlyKylin\build-verify\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule E:/Project/FlyKylin/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -SE:/Project/FlyKylin -BE:/Project/FlyKylin/build-verify --check-stamp-file E:/Project/FlyKylin/build-verify/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">E:\Project\FlyKylin\build-verify\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\mocs_compilation_Debug.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="E:\Project\FlyKylin\src\main.cpp" />
+    <ClCompile Include="E:\Project\FlyKylin\src\ui\viewmodels\PeerListViewModel.cpp" />
+    <ClCompile Include="E:\Project\FlyKylin\src\ui\viewmodels\ChatViewModel.cpp" />
+    <ClCompile Include="E:\Project\FlyKylin\src\ui\widgets\PeerListWidget.cpp" />
+    <ClCompile Include="E:\Project\FlyKylin\src\ui\windows\MainWindow.cpp" />
+    <ClCompile Include="E:\Project\FlyKylin\src\ui\windows\ChatWindow.cpp" />
+    <ClCompile Include="E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\mocs_compilation_Release.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\mocs_compilation_MinSizeRel.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="E:\Project\FlyKylin\build-verify\src\FlyKylin_autogen\mocs_compilation_RelWithDebInfo.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="E:\Project\FlyKylin\build-verify\ZERO_CHECK.vcxproj">
+      <Project>{308CB8A1-A674-33E5-9C9F-B18DE7B170D4}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="E:\Project\FlyKylin\build-verify\src\core\flykylin_core.vcxproj">
+      <Project>{C6FC5A7B-659C-3CE7-B875-F86067AE4854}</Project>
+      <Name>flykylin_core</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Project\FlyKylin\build-verify\protocol\flykylin_protocol.vcxproj">
+      <Project>{BDF43CB1-B373-3069-9BC5-C7FA36B562D3}</Project>
+      <Name>flykylin_protocol</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

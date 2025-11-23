@@ -6,7 +6,9 @@
  */
 
 #include "TcpConnectionManager.h"
+#include "../models/PeerNode.h"
 #include <QDebug>
+#include <QMetaObject>
 
 namespace flykylin {
 namespace communication {
@@ -14,6 +16,53 @@ namespace communication {
 TcpConnectionManager* TcpConnectionManager::instance() {
     static TcpConnectionManager* s_instance = new TcpConnectionManager();
     return s_instance;
+}
+
+void TcpConnectionManager::addIncomingConnection(const QString& peerId, QTcpSocket* socket) {
+    if (!socket) {
+        qWarning() << "[TcpConnectionManager] addIncomingConnection called with null socket for" << peerId;
+        return;
+    }
+
+    // Enforce connection limit for new peers
+    if (m_connections.size() >= kMaxConnections && !m_connections.contains(peerId)) {
+        qCritical() << "[TcpConnectionManager] Connection limit reached (" << kMaxConnections
+                    << "), rejecting incoming connection from" << peerId;
+        socket->close();
+        socket->deleteLater();
+        emit connectionStateChanged(peerId, ConnectionState::Failed,
+                                   QStringLiteral("Connection limit reached"));
+        return;
+    }
+
+    // If we already have a connection for this peer, prefer the existing one and close the new socket
+    if (m_connections.contains(peerId)) {
+        qInfo() << "[TcpConnectionManager] Incoming connection for existing peer" << peerId
+                << "- closing new socket";
+        socket->close();
+        socket->deleteLater();
+        return;
+    }
+
+    qInfo() << "[TcpConnectionManager] Registering incoming connection for" << peerId;
+
+    TcpConnection* conn = new TcpConnection(peerId, socket, this);
+
+    // Connect signals
+    connect(conn, &TcpConnection::stateChanged,
+            this, &TcpConnectionManager::onConnectionStateChanged);
+    connect(conn, &TcpConnection::messageReceived,
+            this, &TcpConnectionManager::onMessageReceived);
+    connect(conn, &TcpConnection::messageSent,
+            this, &TcpConnectionManager::onMessageSent);
+    connect(conn, &TcpConnection::messageFailed,
+            this, &TcpConnectionManager::onMessageFailed);
+
+    m_connections[peerId] = conn;
+
+    // For an accepted socket we are already connected; emit initial state
+    emit connectionStateChanged(peerId, ConnectionState::Connected,
+                               QStringLiteral("Incoming connection accepted"));
 }
 
 TcpConnectionManager::TcpConnectionManager(QObject* parent)
@@ -43,6 +92,48 @@ TcpConnectionManager::~TcpConnectionManager() {
     m_messageQueues.clear();
     
     qInfo() << "[TcpConnectionManager] Destroyed";
+}
+
+void TcpConnectionManager::setupPeerDiscovery(QObject* peerDiscovery) {
+    if (!peerDiscovery) {
+        qWarning() << "[TcpConnectionManager] setupPeerDiscovery: null peerDiscovery";
+        return;
+    }
+    
+    // Connect to peerDiscovered / peerOffline signals using old-style SIGNAL/SLOT macro
+    bool connectedDiscovered = connect(peerDiscovery,
+                                       SIGNAL(peerDiscovered(const flykylin::core::PeerNode&)),
+                                       this,
+                                       SLOT(onPeerDiscovered(const flykylin::core::PeerNode&)));
+
+    bool connectedOffline = connect(peerDiscovery,
+                                    SIGNAL(peerOffline(const QString&)),
+                                    this,
+                                    SLOT(onPeerOffline(const QString&)));
+
+    if (connectedDiscovered && connectedOffline) {
+        qInfo() << "[TcpConnectionManager] PeerDiscovery integration enabled";
+    } else {
+        qWarning() << "[TcpConnectionManager] Failed to connect to PeerDiscovery";
+    }
+}
+
+void TcpConnectionManager::onPeerDiscovered(const flykylin::core::PeerNode& node) {
+    QString peerId = node.userId();
+    QString ip = node.ipAddress().toString();
+    quint16 port = node.tcpPort();
+    
+    qInfo() << "[TcpConnectionManager] Peer discovered:" << peerId 
+            << "at" << ip << ":" << port << "- Auto-connecting...";
+    
+    // Auto-connect to the discovered peer
+    connectToPeer(peerId, ip, port);
+}
+
+void TcpConnectionManager::onPeerOffline(const QString& userId)
+{
+    qInfo() << "[TcpConnectionManager] Peer offline:" << userId << "- disconnecting TCP connection";
+    disconnectFromPeer(userId);
 }
 
 void TcpConnectionManager::connectToPeer(const QString& peerId, const QString& ip, quint16 port) {

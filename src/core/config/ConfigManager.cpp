@@ -127,18 +127,18 @@ bool ConfigManager::loadConfig()
         return false;
     }
     
-    QJsonObject profileJson = root["user_profile"].toObject();
-    m_userProfile = UserProfile::fromJson(profileJson);
+    // NOTE: ConfigManager is deprecated, UserProfile handles its own loading
+    qInfo() << "[ConfigManager] Config loading delegated to UserProfile singleton";
     
-    // 验证加载的配置
-    if (!m_userProfile.isValid()) {
-        qWarning() << "Loaded profile is invalid";
+    // Verify UserProfile is valid
+    if (!flykylin::core::UserProfile::instance().isValid()) {
+        qWarning() << "[ConfigManager] UserProfile singleton is invalid";
         initDefaultConfig();
         emit configLoadFailed("Invalid profile data");
         return false;
     }
     
-    qInfo() << "Config loaded successfully, UUID:" << m_userProfile.uuid();
+    qInfo() << "[ConfigManager] Config loaded via UserProfile, UUID:" << flykylin::core::UserProfile::instance().userId();
     emit configChanged();
     return true;
 }
@@ -159,9 +159,12 @@ bool ConfigManager::saveConfig()
         createBackup();
     }
     
-    // 构建JSON对象
+    // NOTE: ConfigManager is deprecated, UserProfile handles its own saving
+    qInfo() << "[ConfigManager] Config saving delegated to UserProfile singleton";
+    
+    // UserProfile saves automatically, this is a no-op
     QJsonObject root;
-    root["user_profile"] = m_userProfile.toJson();
+    // root["user_profile"] = m_userProfile.toJson();  // DEPRECATED
     
     // 添加元数据
     root["version"] = "1.0";
@@ -191,17 +194,21 @@ bool ConfigManager::saveConfig()
     return true;
 }
 
-UserProfile ConfigManager::userProfile() const
+const flykylin::core::UserProfile& ConfigManager::userProfile() const
 {
-    QMutexLocker locker(&m_profileMutex);
-    return m_userProfile;
+    // DEPRECATED: Return UserProfile::instance() reference to maintain API compatibility
+    // Callers should use UserProfile::instance() directly
+    qWarning() << "[ConfigManager] userProfile() is deprecated, use UserProfile::instance() directly";
+    
+    return flykylin::core::UserProfile::instance();
 }
 
-void ConfigManager::setUserProfile(const UserProfile& profile)
+void ConfigManager::setUserProfile(const flykylin::core::UserProfile& profile)
 {
-    QMutexLocker locker(&m_profileMutex);
-    m_userProfile = profile;
-    m_userProfile.touch();  // 更新时间戳
+    // DEPRECATED: ConfigManager no longer manages UserProfile
+    // Use UserProfile::instance().setUserName() etc. instead
+    qWarning() << "[ConfigManager] setUserProfile() is deprecated and does nothing";
+    qWarning() << "[ConfigManager] Use UserProfile::instance() methods instead";
     emit configChanged();
 }
 
@@ -217,16 +224,13 @@ QString ConfigManager::configDir() const
 
 void ConfigManager::initDefaultConfig()
 {
-    qInfo() << "Initializing default configuration";
+    qInfo() << "[ConfigManager] Initializing default configuration";
+    qInfo() << "[ConfigManager] NOTE: ConfigManager is deprecated, UserProfile singleton manages config";
     
-    m_userProfile = UserProfile();
-    m_userProfile.setUuid(generateUuid());
-    m_userProfile.setUserName(getDefaultUserName());
-    m_userProfile.setHostName(getHostName());
-    m_userProfile.setMacAddress(getMacAddress());
-    m_userProfile.touch();
+    // UserProfile singleton已经自动初始化和管理配置
+    // ConfigManager现在是legacy代码，保留兼容性
     
-    qInfo() << "Default config created, UUID:" << m_userProfile.uuid();
+    qInfo() << "[ConfigManager] Default config handled by UserProfile singleton";
 }
 
 QString ConfigManager::generateUuid()

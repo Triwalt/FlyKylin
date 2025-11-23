@@ -1,0 +1,246 @@
+#include "DatabaseService.h"
+
+#include <QDateTime>
+#include <QDebug>
+#include <QDir>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QStandardPaths>
+
+namespace flykylin {
+namespace database {
+
+DatabaseService* DatabaseService::instance() {
+    static DatabaseService* s_instance = new DatabaseService();
+    return s_instance;
+}
+
+DatabaseService::DatabaseService(QObject* parent)
+    : QObject(parent) {
+}
+
+DatabaseService::~DatabaseService() {
+    if (m_db.isOpen()) {
+        m_db.close();
+    }
+
+    const QString connectionName = m_db.connectionName();
+    if (!connectionName.isEmpty()) {
+        m_db = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connectionName);
+    }
+}
+
+bool DatabaseService::ensureInitialized() const {
+    if (m_initialized) {
+        return true;
+    }
+
+    if (m_initFailed) {
+        return false;
+    }
+
+    auto self = const_cast<DatabaseService*>(this);
+    if (!self->init()) {
+        self->m_initFailed = true;
+        return false;
+    }
+
+    self->m_initialized = true;
+    return true;
+}
+
+bool DatabaseService::init() {
+    const QString baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (baseDir.isEmpty()) {
+        qCritical() << "[DatabaseService] Failed to get AppDataLocation";
+        return false;
+    }
+
+    QDir dir(baseDir);
+    if (!dir.exists("FlyKylin")) {
+        if (!dir.mkpath("FlyKylin")) {
+            qCritical() << "[DatabaseService] Failed to create directory" << dir.filePath("FlyKylin");
+            return false;
+        }
+    }
+
+    if (!dir.cd("FlyKylin")) {
+        qCritical() << "[DatabaseService] Failed to enter directory FlyKylin";
+        return false;
+    }
+
+    m_dbPath = dir.filePath("chat_history.db");
+
+    if (!QSqlDatabase::contains("FlyKylinChatHistory")) {
+        m_db = QSqlDatabase::addDatabase("QSQLITE", "FlyKylinChatHistory");
+    } else {
+        m_db = QSqlDatabase::database("FlyKylinChatHistory");
+    }
+
+    m_db.setDatabaseName(m_dbPath);
+    if (!m_db.open()) {
+        qCritical() << "[DatabaseService] Failed to open database" << m_dbPath << ":" << m_db.lastError().text();
+        return false;
+    }
+
+    QSqlQuery query(m_db);
+    if (!query.exec(
+            "CREATE TABLE IF NOT EXISTS messages ("
+            "id TEXT PRIMARY KEY,"
+            "local_user_id TEXT NOT NULL,"
+            "peer_id TEXT NOT NULL,"
+            "from_id TEXT NOT NULL,"
+            "to_id TEXT NOT NULL,"
+            "content TEXT,"
+            "timestamp INTEGER NOT NULL,"
+            "status INTEGER NOT NULL,"
+            "kind INTEGER NOT NULL,"
+            "is_read INTEGER NOT NULL,"
+            "attachment_path TEXT,"
+            "attachment_name TEXT,"
+            "attachment_size INTEGER,"
+            "mime_type TEXT"
+            ")")) {
+        qCritical() << "[DatabaseService] Failed to create messages table:" << query.lastError().text();
+        return false;
+    }
+
+    if (!query.exec(
+            "CREATE INDEX IF NOT EXISTS idx_messages_peer_ts "
+            "ON messages(local_user_id, peer_id, timestamp)")) {
+        qWarning() << "[DatabaseService] Failed to create idx_messages_peer_ts:" << query.lastError().text();
+    }
+
+    if (!query.exec(
+            "CREATE INDEX IF NOT EXISTS idx_messages_ts "
+            "ON messages(local_user_id, timestamp)")) {
+        qWarning() << "[DatabaseService] Failed to create idx_messages_ts:" << query.lastError().text();
+    }
+
+    qInfo() << "[DatabaseService] Initialized chat history database at" << m_dbPath;
+
+    return true;
+}
+
+QList<core::Message> DatabaseService::loadMessages(const QString& localUserId, const QString& peerId) const {
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id AND peer_id = :peer_id "
+        "ORDER BY timestamp ASC, rowid ASC");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":peer_id", peerId);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load messages for" << localUserId << peerId
+                   << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        result.append(message);
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "messages for" << localUserId << peerId;
+
+    return result;
+}
+
+void DatabaseService::appendMessage(const core::Message& message, const QString& localUserId) {
+    if (!ensureInitialized()) {
+        return;
+    }
+
+    const QString peerId = (message.fromUserId() == localUserId)
+                               ? message.toUserId()
+                               : message.fromUserId();
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "INSERT OR REPLACE INTO messages ("
+        "id, local_user_id, peer_id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type"
+        ") VALUES ("
+        ":id, :local_user_id, :peer_id, :from_id, :to_id, :content, :timestamp, :status, :kind, :is_read, "
+        ":attachment_path, :attachment_name, :attachment_size, :mime_type"
+        ")");
+
+    query.bindValue(":id", message.id());
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":peer_id", peerId);
+    query.bindValue(":from_id", message.fromUserId());
+    query.bindValue(":to_id", message.toUserId());
+    query.bindValue(":content", message.content());
+    query.bindValue(":timestamp", message.timestamp().toMSecsSinceEpoch());
+    query.bindValue(":status", static_cast<int>(message.status()));
+    query.bindValue(":kind", static_cast<int>(message.kind()));
+    query.bindValue(":is_read", message.isRead() ? 1 : 0);
+    query.bindValue(":attachment_path", message.attachmentLocalPath());
+    query.bindValue(":attachment_name", message.attachmentName());
+    query.bindValue(":attachment_size", static_cast<qint64>(message.attachmentSize()));
+    query.bindValue(":mime_type", message.mimeType());
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to append message" << message.id()
+                   << ":" << query.lastError().text();
+    }
+}
+
+void DatabaseService::clearHistory(const QString& localUserId, const QString& peerId) {
+    if (!ensureInitialized()) {
+        return;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "DELETE FROM messages "
+        "WHERE local_user_id = :local_user_id AND peer_id = :peer_id");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":peer_id", peerId);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to clear history for" << localUserId << peerId
+                   << ":" << query.lastError().text();
+    }
+}
+
+} // namespace database
+} // namespace flykylin

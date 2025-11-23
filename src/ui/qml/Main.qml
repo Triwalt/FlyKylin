@@ -7,7 +7,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import FlyKylin.ViewModels 1.0
+import Qt.labs.settings
+import "."
 
 ApplicationWindow {
     id: mainWindow
@@ -16,21 +17,785 @@ ApplicationWindow {
     height: 800
     title: qsTr("FlyKylin - AI智能飞秋")
     
+    // 主背景
+    color: Style.background
+    
+    // Load Material Icons
+    FontLoader {
+        id: materialIcons
+        source: "../assets/fonts/MaterialIcons-Regular.ttf"
+    }
+    
+    // 设置对话框
+    SettingsDialog {
+        id: settingsDialog
+    }
+
+    PeerInfoDialog {
+        id: peerInfoDialog
+    }
+
+    // 简单联系人数据模型（会话中“加入联系人”时填充）
+    ListModel {
+        id: contactsModel
+    }
+
+    // 持久化联系人列表
+    Settings {
+        id: contactsStore
+        category: "contacts"
+        property string contactsJson: "[]"
+    }
+
+    // 群组数据模型（本地伪群聊）
+    ListModel {
+        id: groupsModel
+    }
+
+    // 持久化群组列表
+    Settings {
+        id: groupsStore
+        category: "groups"
+        property string groupsJson: "[]"
+    }
+
+    function loadContacts() {
+        contactsModel.clear()
+        if (!contactsStore.contactsJson || contactsStore.contactsJson.length === 0)
+            return
+
+        try {
+            var arr = JSON.parse(contactsStore.contactsJson)
+            for (var i = 0; i < arr.length; ++i) {
+                var c = arr[i]
+                if (!c.userId)
+                    continue
+                contactsModel.append({
+                                         userId: c.userId,
+                                         userName: c.userName || "",
+                                         hostName: c.hostName || "",
+                                         ipAddress: c.ipAddress || "",
+                                         tcpPort: c.tcpPort || 0
+                                     })
+            }
+        } catch (e) {
+            console.log("[Contacts] Failed to parse contactsJson", e)
+        }
+    }
+
+    function saveContacts() {
+        var arr = []
+        for (var i = 0; i < contactsModel.count; ++i) {
+            var c = contactsModel.get(i)
+            arr.push({
+                         userId: c.userId,
+                         userName: c.userName,
+                         hostName: c.hostName,
+                         ipAddress: c.ipAddress,
+                         tcpPort: c.tcpPort
+                     })
+        }
+        contactsStore.contactsJson = JSON.stringify(arr)
+    }
+
+    function loadGroups() {
+        groupsModel.clear()
+        if (!groupsStore.groupsJson || groupsStore.groupsJson.length === 0)
+            return
+
+        try {
+            var arr = JSON.parse(groupsStore.groupsJson)
+            for (var i = 0; i < arr.length; ++i) {
+                var g = arr[i]
+                if (!g.id || !g.name || !g.members)
+                    continue
+                groupsModel.append({
+                                       id: g.id,
+                                       name: g.name,
+                                       members: g.members
+                                   })
+            }
+        } catch (e) {
+            console.log("[GroupChat] Failed to parse groupsJson", e)
+        }
+    }
+
+    function saveGroups() {
+        var arr = []
+        for (var i = 0; i < groupsModel.count; ++i) {
+            var g = groupsModel.get(i)
+            arr.push({
+                         id: g.id,
+                         name: g.name,
+                         members: g.members
+                     })
+        }
+        groupsStore.groupsJson = JSON.stringify(arr)
+    }
+
+    Component.onCompleted: {
+        loadContacts()
+        loadGroups()
+    }
+
+    // 简单的下线提醒横幅
+    property string offlineNoticeText: ""
+    property bool offlineNoticeVisible: false
+
+    Timer {
+        id: offlineNoticeTimer
+        interval: 3000
+        repeat: false
+        onTriggered: offlineNoticeVisible = false
+    }
+
+    Rectangle {
+        id: offlineNoticeBanner
+        visible: offlineNoticeVisible
+        radius: Style.radiusMedium
+        color: "#323232CC"
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 16
+        z: 1000
+
+        Label {
+            id: offlineNoticeLabel
+            anchors.margins: 12
+            anchors.fill: parent
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            text: offlineNoticeText
+            font: Style.fontBody
+            color: "white"
+        }
+
+        implicitWidth: offlineNoticeLabel.implicitWidth + 24
+        implicitHeight: offlineNoticeLabel.implicitHeight + 16
+    }
+
     // 主布局
     RowLayout {
         anchors.fill: parent
         spacing: 0
         
-        // 左侧：在线用户列表
+        // 左侧：图标竖栏 + 列表
         Rectangle {
             Layout.fillHeight: true
-            Layout.preferredWidth: 300
-            color: "#f5f5f5"
+            Layout.preferredWidth: 320 // Slightly wider
+            color: Style.surface
             
-            // 使用自定义组件
-            PeerList {
+            // 右侧边框
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: "#E5E7EB" // Border color
+            }
+
+            RowLayout {
                 anchors.fill: parent
-                viewModel: peerListViewModel
+                anchors.margins: 0
+                spacing: 0
+
+                // 左侧图标栏：应用 Logo + 四个功能图标
+                Rectangle {
+                    id: sideIconBar
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 72
+                    color: Style.surface
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 0
+                        spacing: 0
+
+                        // 顶部应用 Logo（SVG，小尺寸，宽度为侧栏宽度的90%）
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 48
+                            Layout.topMargin: Style.spacingMedium
+                            color: "transparent"
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: parent.width * 0.9
+                                source: "../resources/app_icon.svg"
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+
+                        // 四个图标 Tab（垂直排列）
+                        ColumnLayout {
+                            id: leftTabs
+                            Layout.fillWidth: true
+                            Layout.fillHeight: false
+                            spacing: 4
+                            property int currentIndex: 0
+
+                            // 会话
+                            Item {
+                                id: tabChatItem
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 56
+
+                                Rectangle {
+                                    id: tabChatBg
+                                    anchors.fill: parent
+                                    radius: Style.radiusMedium
+                                    color: leftTabs.currentIndex === 0
+                                           ? "#EEF2FF"
+                                           : (chatMouseArea.containsMouse ? Style.surfaceHover : "transparent")
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: 2
+                                    text: "\ue0b7" // chat icon
+                                    font: Style.iconFont
+                                    color: leftTabs.currentIndex === 0 ? Style.primary : Style.textSecondary
+                                }
+
+                                MouseArea {
+                                    id: chatMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: leftTabs.currentIndex = 0
+                                }
+                            }
+
+                            // 在线
+                            Item {
+                                id: tabOnlineItem
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 56
+
+                                Rectangle {
+                                    id: tabOnlineBg
+                                    anchors.fill: parent
+                                    radius: Style.radiusMedium
+                                    color: leftTabs.currentIndex === 1
+                                           ? "#EEF2FF"
+                                           : (onlineMouseArea.containsMouse ? Style.surfaceHover : "transparent")
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: 2
+                                    text: "\ue7f4" // people/online icon
+                                    font: Style.iconFont
+                                    color: leftTabs.currentIndex === 1 ? Style.primary : Style.textSecondary
+                                }
+
+                                MouseArea {
+                                    id: onlineMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: leftTabs.currentIndex = 1
+                                }
+                            }
+
+                            // 联系人
+                            Item {
+                                id: tabContactsItem
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 56
+
+                                Rectangle {
+                                    id: tabContactsBg
+                                    anchors.fill: parent
+                                    radius: Style.radiusMedium
+                                    color: leftTabs.currentIndex === 2
+                                           ? "#EEF2FF"
+                                           : (contactsMouseArea.containsMouse ? Style.surfaceHover : "transparent")
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: 2
+                                    text: "\ue0ba" // contacts icon
+                                    font: Style.iconFont
+                                    color: leftTabs.currentIndex === 2 ? Style.primary : Style.textSecondary
+                                }
+
+                                MouseArea {
+                                    id: contactsMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: leftTabs.currentIndex = 2
+                                }
+                            }
+
+                            // 群组
+                            Item {
+                                id: tabGroupsItem
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 56
+
+                                Rectangle {
+                                    id: tabGroupsBg
+                                    anchors.fill: parent
+                                    radius: Style.radiusMedium
+                                    color: leftTabs.currentIndex === 3
+                                           ? "#EEF2FF"
+                                           : (groupsMouseArea.containsMouse ? Style.surfaceHover : "transparent")
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: 2
+                                    text: "\ue7ef" // groups icon
+                                    font: Style.iconFont
+                                    color: leftTabs.currentIndex === 3 ? Style.primary : Style.textSecondary
+                                }
+
+                                MouseArea {
+                                    id: groupsMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: leftTabs.currentIndex = 3
+                                }
+                            }
+                        }
+
+                        // 占位拉伸项，将设置按钮推到底部
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                        }
+
+                        // 底部设置按钮（样式与上方按钮类似）
+                        Item {
+                            id: settingsButtonItem
+                            Layout.fillWidth: true
+                            Layout.bottomMargin: Style.spacingMedium
+                            Layout.preferredHeight: 56
+
+                            Rectangle {
+                                id: settingsBg
+                                anchors.fill: parent
+                                radius: Style.radiusMedium
+                                color: settingsMouseArea.containsMouse ? Style.surfaceHover : "transparent"
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                anchors.horizontalCenterOffset: 2
+                                text: "\ue8b8" // settings icon
+                                font: Style.iconFont
+                                color: Style.primary
+                            }
+
+                            MouseArea {
+                                id: settingsMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: settingsDialog.visible = true
+                            }
+                        }
+                    }
+                }
+
+                // 右侧：分页面内容
+                ColumnLayout {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    spacing: 0
+
+                    // 左侧分页面：会话 / 在线用户 / 联系人 / 群组
+                    StackLayout {
+                        id: leftStack
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        currentIndex: leftTabs.currentIndex
+
+                        // 会话页：显示所有会话（包含离线用户）+ 本地群聊会话
+                        Item {
+                            id: sessionsPage
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: Style.spacingMedium
+                                spacing: Style.spacingMedium
+
+                                // 会话（用户）列表，沿用通用 PeerList 组件
+                                PeerList {
+                                    id: sessionPeerList
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    viewModel: peerListViewModel
+                                    titleText: qsTr("会话")
+                                    useSessionModel: true
+                                }
+
+                                // 群聊会话列表：展示所有本地定义的群组
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Math.min(220, groupsModel.count * 56 + Style.spacingLarge)
+                                    color: "transparent"
+
+                                    ColumnLayout {
+                                        anchors.fill: parent
+                                        spacing: Style.spacingSmall
+
+                                        Label {
+                                            text: qsTr("群聊会话")
+                                            font: Style.fontCaption
+                                            color: Style.textSecondary
+                                        }
+
+                                        ListView {
+                                            id: sessionGroupsList
+                                            Layout.fillWidth: true
+                                            Layout.fillHeight: true
+                                            model: groupsModel
+                                            clip: true
+                                            spacing: 4
+
+                                            delegate: ItemDelegate {
+                                                width: sessionGroupsList.width
+
+                                                contentItem: ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 2
+
+                                                    Label {
+                                                        text: name
+                                                        font: Style.fontBody
+                                                        color: Style.textPrimary
+                                                    }
+
+                                                    Label {
+                                                        text: {
+                                                            var count = 0
+                                                            if (members && typeof members.length === "number")
+                                                                count = members.length
+                                                            return qsTr("成员数: %1").arg(count)
+                                                        }
+                                                        font: Style.fontCaption
+                                                        color: Style.textSecondary
+                                                    }
+                                                }
+
+                                                onClicked: {
+                                                    var m = members
+                                                    if (!m || typeof m.length !== "number") {
+                                                        m = []
+                                                    }
+                                                    chatViewModel.setCurrentGroup(id, name, m)
+                                                    // 保持在“会话”页，只切换右侧聊天为该群
+                                                    leftTabs.currentIndex = 0
+                                                }
+
+                                                Menu {
+                                                    id: sessionGroupContextMenu
+                                                    MenuItem {
+                                                        text: qsTr("删除群组")
+                                                        onTriggered: {
+                                                            var idx = index
+                                                            if (idx >= 0 && idx < groupsModel.count) {
+                                                                var g = groupsModel.get(idx)
+                                                                groupsModel.remove(idx)
+                                                                saveGroups()
+                                                                if (chatViewModel.isGroupChat() && chatViewModel.getCurrentGroupId() === g.id) {
+                                                                    chatViewModel.resetConversation()
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    acceptedButtons: Qt.RightButton
+                                                    onClicked: function(mouse) {
+                                                        if (mouse.button === Qt.RightButton) {
+                                                            sessionGroupContextMenu.open()
+                                                            mouse.accepted = true
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            ScrollBar.vertical: ScrollBar {}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 在线用户页：仅显示当前在线用户
+                        PeerList {
+                            viewModel: peerListViewModel
+                            titleText: qsTr("在线用户")
+                            useSessionModel: false
+                        }
+
+                        // 联系人页
+                        Item {
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: Style.spacingMedium
+                                spacing: Style.spacingMedium
+
+                                Label {
+                                    text: qsTr("联系人")
+                                    font: Style.fontHeading
+                                    color: Style.textPrimary
+                                }
+
+                                ListView {
+                                    id: contactsList
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    model: contactsModel
+                                    clip: true
+                                    spacing: 4
+
+                                    delegate: ItemDelegate {
+                                        width: contactsList.width
+
+                                        contentItem: RowLayout {
+                                            spacing: Style.spacingSmall
+
+                                            // 在线状态指示灯
+                                            Rectangle {
+                                                width: 10
+                                                height: 10
+                                                radius: 5
+                                                color: (peerListViewModel.onlineVersion,
+                                                        peerListViewModel.isPeerOnline(userId)) ? Style.online : Style.offline
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 2
+
+                                                Label {
+                                                    text: userName
+                                                    font: Style.fontBody
+                                                    color: Style.textPrimary
+                                                }
+
+                                                Label {
+                                                    text: ipAddress + ":" + (tcpPort > 0 ? tcpPort : "-")
+                                                    font: Style.fontCaption
+                                                    color: Style.textSecondary
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    ScrollBar.vertical: ScrollBar {}
+                                }
+                            }
+                        }
+
+                        // 群组页（预留）
+                        Item {
+                            id: groupsPage
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: Style.spacingMedium
+                                spacing: Style.spacingMedium
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+
+                                    Label {
+                                        text: qsTr("群组")
+                                        font: Style.fontHeading
+                                        color: Style.textPrimary
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Button {
+                                        text: qsTr("新建群组")
+                                        onClicked: newGroupDialog.open()
+                                    }
+                                }
+
+                                ListView {
+                                    id: groupsList
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    model: groupsModel
+                                    clip: true
+                                    spacing: 4
+
+                                    delegate: ItemDelegate {
+                                        width: groupsList.width
+
+                                        contentItem: ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+
+                                            Label {
+                                                text: name
+                                                font: Style.fontBody
+                                                color: Style.textPrimary
+                                            }
+
+                                            Label {
+                                                text: {
+                                                    var count = 0
+                                                    if (members && typeof members.length === "number")
+                                                        count = members.length
+                                                    return qsTr("成员数: %1").arg(count)
+                                                }
+                                                font: Style.fontCaption
+                                                color: Style.textSecondary
+                                            }
+                                        }
+
+                                        onClicked: {
+                                            var m = members
+                                            if (!m || typeof m.length !== "number") {
+                                                m = []
+                                            }
+                                            chatViewModel.setCurrentGroup(id, name, m)
+                                            // 打开群聊后回到“会话”页，方便随时切换到其他会话
+                                            leftTabs.currentIndex = 0
+                                        }
+
+                                        Menu {
+                                            id: groupsPageContextMenu
+                                            MenuItem {
+                                                text: qsTr("删除群组")
+                                                onTriggered: {
+                                                    var idx = index
+                                                    if (idx >= 0 && idx < groupsModel.count) {
+                                                        var g = groupsModel.get(idx)
+                                                        groupsModel.remove(idx)
+                                                        saveGroups()
+                                                        if (chatViewModel.isGroupChat() && chatViewModel.getCurrentGroupId() === g.id) {
+                                                            chatViewModel.resetConversation()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.RightButton
+                                            onClicked: function(mouse) {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    groupsPageContextMenu.open()
+                                                    mouse.accepted = true
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    ScrollBar.vertical: ScrollBar {}
+                                }
+                            }
+
+                            Dialog {
+                                id: newGroupDialog
+                                modal: true
+                                x: (mainWindow.width - width) / 2
+                                y: (mainWindow.height - height) / 2
+                                standardButtons: Dialog.Ok | Dialog.Cancel
+                                title: qsTr("新建群组")
+                                property var selectedIds: []
+
+                                onOpened: {
+                                    selectedIds = []
+                                    groupNameField.text = ""
+                                }
+
+                                contentItem: ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: Style.spacingMedium
+                                    spacing: Style.spacingSmall
+
+                                    TextField {
+                                        id: groupNameField
+                                        Layout.fillWidth: true
+                                        placeholderText: qsTr("群组名称")
+                                    }
+
+                                    Label {
+                                        text: qsTr("从联系人中选择成员")
+                                        font: Style.fontCaption
+                                        color: Style.textSecondary
+                                    }
+
+                                    ListView {
+                                        id: newGroupContactsList
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 260
+                                        model: contactsModel
+                                        clip: true
+
+                                        delegate: ItemDelegate {
+                                            width: newGroupContactsList.width
+
+                                            contentItem: RowLayout {
+                                                spacing: Style.spacingSmall
+
+                                                CheckBox {
+                                                    checked: newGroupDialog.selectedIds.indexOf(userId) !== -1
+                                                    onToggled: {
+                                                        var list = newGroupDialog.selectedIds.slice(0)
+                                                        var idx = list.indexOf(userId)
+                                                        if (checked && idx === -1)
+                                                            list.push(userId)
+                                                        else if (!checked && idx !== -1)
+                                                            list.splice(idx, 1)
+                                                        newGroupDialog.selectedIds = list
+                                                    }
+                                                }
+
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 2
+
+                                                    Label {
+                                                        text: userName
+                                                        font: Style.fontBody
+                                                        color: Style.textPrimary
+                                                    }
+
+                                                    Label {
+                                                        text: ipAddress + ":" + (tcpPort > 0 ? tcpPort : "-")
+                                                        font: Style.fontCaption
+                                                        color: Style.textSecondary
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        ScrollBar.vertical: ScrollBar {}
+                                    }
+                                }
+
+                                onAccepted: {
+                                    if (selectedIds.length === 0)
+                                        return
+
+                                    var groupId = "g-" + Date.now()
+                                    var name = groupNameField.text && groupNameField.text.length > 0
+                                               ? groupNameField.text
+                                               : qsTr("新群组")
+                                    groupsModel.append({
+                                                           id: groupId,
+                                                           name: name,
+                                                           members: selectedIds
+                                                       })
+                                    saveGroups()
+                                    chatViewModel.setCurrentGroup(groupId, name, selectedIds)
+                                    // 新建群组后也回到“会话”页，左侧展示会话+群聊列表
+                                    leftTabs.currentIndex = 0
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         
@@ -38,15 +803,129 @@ ApplicationWindow {
         Rectangle {
             Layout.fillHeight: true
             Layout.fillWidth: true
-            color: "white"
+            color: Style.background // Chat area background
             
-            // 聊天视图（待实现）
+            // 聊天视图
             ChatView {
                 anchors.fill: parent
+                viewModel: chatViewModel
             }
         }
     }
-    
-    // ViewModel实例（在C++中注册）
-    property var peerListViewModel
+
+    Dialog {
+        id: addToGroupDialog
+        modal: true
+        x: (mainWindow.width - width) / 2
+        y: (mainWindow.height - height) / 2
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        title: qsTr("选择群组")
+        property string pendingUserId: ""
+        property string pendingUserName: ""
+
+        contentItem: ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: Style.spacingMedium
+            spacing: Style.spacingSmall
+
+            Label {
+                text: groupsModel.count > 0
+                      ? qsTr("为 %1 选择一个群组").arg(addToGroupDialog.pendingUserName)
+                      : qsTr("当前还没有群组，请先在群组页中新建")
+                font: Style.fontBody
+                color: Style.textPrimary
+                wrapMode: Text.Wrap
+            }
+
+            ComboBox {
+                id: groupCombo
+                Layout.fillWidth: true
+                visible: groupsModel.count > 0
+                model: groupsModel
+                textRole: "name"
+            }
+        }
+
+        onAccepted: {
+            if (groupsModel.count === 0)
+                return
+            var index = groupCombo.currentIndex
+            if (index < 0 || index >= groupsModel.count)
+                return
+            var g = groupsModel.get(index)
+            var members = g.members ? g.members.slice(0) : []
+            if (members.indexOf(pendingUserId) === -1) {
+                members.push(pendingUserId)
+                groupsModel.set(index, {
+                                     id: g.id,
+                                     name: g.name,
+                                     members: members
+                                 })
+                saveGroups()
+
+                // Switch to the updated group chat and refresh aggregated history
+                chatViewModel.setCurrentGroup(g.id, g.name, members)
+                // 回到“会话”页，左侧展示会话+群聊列表，方便切换
+                leftTabs.currentIndex = 0
+            }
+        }
+    }
+
+    Connections {
+        target: peerListViewModel
+
+        function onPeerDetailsRequested(userId, userName, hostName, ipAddress, tcpPort, groups) {
+            peerInfoDialog.openWithArgs(userId, userName, hostName, ipAddress, tcpPort, groups)
+        }
+
+        function onAddToContactsRequested(userId, userName, hostName, ipAddress, tcpPort) {
+            var displayName = (userName && userName.length > 0) ? userName : userId
+
+            // 查找是否已存在
+            var existingIndex = -1
+            for (var i = 0; i < contactsModel.count; ++i) {
+                var c = contactsModel.get(i)
+                if (c.userId === userId) {
+                    existingIndex = i
+                    break
+                }
+            }
+
+            var contactData = {
+                userId: userId,
+                userName: displayName,
+                hostName: hostName,
+                ipAddress: ipAddress,
+                tcpPort: tcpPort
+            }
+
+            if (existingIndex === -1) {
+                contactsModel.append(contactData)
+            } else {
+                contactsModel.set(existingIndex, contactData)
+            }
+
+            saveContacts()
+        }
+
+        function onAddToGroupRequested(userId, userName, hostName, ipAddress, tcpPort) {
+            if (groupsModel.count === 0) {
+                offlineNoticeText = qsTr("当前还没有群组，请先在群组页中新建")
+                offlineNoticeVisible = true
+                offlineNoticeTimer.restart()
+                return
+            }
+
+            addToGroupDialog.pendingUserId = userId
+            addToGroupDialog.pendingUserName = (userName && userName.length > 0) ? userName : userId
+            addToGroupDialog.open()
+        }
+
+        function onPeerOfflineNotified(userId, userName, ipAddress) {
+            var name = (userName && userName.length > 0) ? userName : userId
+            offlineNoticeText = name + " (" + ipAddress + ") 已下线"
+            offlineNoticeVisible = true
+            offlineNoticeTimer.restart()
+        }
+    }
 }

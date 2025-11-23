@@ -78,6 +78,8 @@ protected:
     
 private slots:
     void onSendButtonClicked();
+    void onSendImageButtonClicked();
+    void onSendFileButtonClicked();
     void onMessagesUpdated();
     void onMessageReceived(const flykylin::core::Message& message);
     void onMessageSent(const flykylin::core::Message& message);
@@ -98,6 +100,8 @@ private:
     QVBoxLayout* m_messageLayout;
     QTextEdit* m_inputEdit;
     QPushButton* m_sendButton;
+    QPushButton* m_imageButton;
+    QPushButton* m_fileButton;
     
     // View Model
     ui::ChatViewModel* m_viewModel;

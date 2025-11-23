@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <ProjectOutputs>
+    <ProjectOutput>
+      <FullPath>E:\Project\FlyKylin\build-verify\x64\Debug\ZERO_CHECK</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>E:\Project\FlyKylin\build-verify\protocol\x64\Debug\flykylin_protocol_autogen</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>E:\Project\FlyKylin\build-verify\bin\Debug\FlyKylin.exe</FullPath>
+    </ProjectOutput>
+  </ProjectOutputs>
+  <ContentFiles />
+  <SatelliteDlls />
+  <NonRecipeFileRefs />
+</Project>

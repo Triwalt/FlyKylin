@@ -1,0 +1,34 @@
+^E:\PROJECT\FLYKYLIN\BUILD-TEST\CMAKEFILES\F3EA78A56C1D3A0B2F224B901F0A9398\MESSAGES.PB.H.RULE
+setlocal
+D:\Anaconda\Library\bin\protoc.exe --cpp_out :E:/Project/FlyKylin/build-test/protocol -I E:/Project/FlyKylin/protocol E:/Project/FlyKylin/protocol/messages.proto
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^E:\PROJECT\FLYKYLIN\BUILD-TEST\CMAKEFILES\209CC2F4FB0A8601691CED6DCB8171D4\FLYKYLIN_PROTOCOL_AUTOGEN.RULE
+setlocal
+cd E:\Project\FlyKylin\build-test\protocol
+if %errorlevel% neq 0 goto :cmEnd
+E:
+if %errorlevel% neq 0 goto :cmEnd
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -E cmake_autogen E:/Project/FlyKylin/build-test/protocol/CMakeFiles/flykylin_protocol_autogen.dir/AutogenInfo.json Debug
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^E:\PROJECT\FLYKYLIN\PROTOCOL\CMAKELISTS.TXT
+setlocal
+D:\ST\STM32CubeCLT_1.18.0\CMake\bin\cmake.exe -SE:/Project/FlyKylin -BE:/Project/FlyKylin/build-test --check-stamp-file E:/Project/FlyKylin/build-test/protocol/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

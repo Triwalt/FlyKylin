@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="E:\Project\FlyKylin\build-test\CMakeFiles\b1c6ee85af45b449d85068329aae9cd5\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{46B37AA3-7BB7-36F3-9F73-3DBBC389E2EC}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

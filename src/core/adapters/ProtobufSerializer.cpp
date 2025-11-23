@@ -10,6 +10,7 @@
 
 #include <QString>
 #include <QDateTime>
+#include <QByteArray>
 
 namespace flykylin {
 namespace adapters {
@@ -20,8 +21,6 @@ ProtobufSerializer::ProtobufSerializer() {
 }
 
 ProtobufSerializer::~ProtobufSerializer() {
-    // 清理Protobuf库（如需要）
-    google::protobuf::ShutdownProtobufLibrary();
 }
 
 // ========== 节点发现消息 ==========
@@ -77,7 +76,22 @@ std::optional<core::PeerNode> ProtobufSerializer::deserializePeerMessage(const s
     }
     
     // 转换为PeerNode
-    return convertFromProtobuf(msg.peer());
+    core::PeerNode peer = convertFromProtobuf(msg.peer());
+
+    // 根据Discovery消息类型设置在线/离线状态
+    // ANNOUNCE / HEARTBEAT 视为在线，GOODBYE 视为离线
+    switch (msg.type()) {
+    case flykylin::protocol::DiscoveryType::GOODBYE:
+        peer.setOnline(false);
+        break;
+    case flykylin::protocol::DiscoveryType::ANNOUNCE:
+    case flykylin::protocol::DiscoveryType::HEARTBEAT:
+    default:
+        peer.setOnline(true);
+        break;
+    }
+
+    return peer;
 }
 
 // ========== 文本消息 ==========
@@ -157,12 +171,23 @@ bool ProtobufSerializer::isValidDiscoveryMessage(const std::vector<uint8_t>& dat
 // ========== 私有辅助方法 ==========
 
 void ProtobufSerializer::convertToProtobuf(const core::PeerNode& peer, flykylin::protocol::PeerInfo* peerInfo) const {
-    peerInfo->set_user_id(peer.userId().toStdString());
-    peerInfo->set_user_name(peer.userName().toStdString());
-    peerInfo->set_ip_address(peer.ipAddress().toString().toStdString());
+    // 使用 QByteArray + const char* 接口，避免本地 std::string 临时对象与
+    // Protobuf 库/CRT 之间可能的 ABI/堆分配差异
+    const QByteArray userIdBytes = peer.userId().toUtf8();
+    peerInfo->set_user_id(userIdBytes.constData(), static_cast<int>(userIdBytes.size()));
+
+    const QByteArray userNameBytes = peer.userName().toUtf8();
+    peerInfo->set_user_name(userNameBytes.constData(), static_cast<int>(userNameBytes.size()));
+
+    const QByteArray ipBytes = peer.ipAddress().toString().toUtf8();
+    peerInfo->set_ip_address(ipBytes.constData(), static_cast<int>(ipBytes.size()));
+
     peerInfo->set_port(peer.port());
     peerInfo->set_timestamp(peer.lastSeenTime().toMSecsSinceEpoch());
-    peerInfo->set_os_type(peer.osType().toStdString());
+
+    const QByteArray osTypeBytes = peer.osType().toUtf8();
+    peerInfo->set_os_type(osTypeBytes.constData(), static_cast<int>(osTypeBytes.size()));
+
     peerInfo->set_version("1.0.0");  // 简化：固定版本号
 }
 

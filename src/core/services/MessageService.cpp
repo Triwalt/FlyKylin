@@ -2,24 +2,29 @@
  * @file MessageService.cpp
  * @brief Message service implementation
  * @author FlyKylin Development Team
- * @date 2024-11-19
+ * @date 2024-11-20
  */
 
 #include "MessageService.h"
+#include "../config/UserProfile.h"
+#include "../database/DatabaseService.h"
 #include <QDebug>
 #include <string>
+#include "messages.pb.h"
 
 namespace flykylin {
 namespace services {
+
+using database::DatabaseService;
 
 MessageService::MessageService(QObject* parent)
     : QObject(parent)
     , m_connectionManager(communication::TcpConnectionManager::instance())
     , m_echoService(new LocalEchoService(this))
+    , m_fileTransferService(new FileTransferService(this))
 {
-    // TODO: Get local user ID from UserProfile singleton when implemented
-    // For now, use a temporary placeholder
-    m_localUserId = "local_user";
+    // Get local user ID from UserProfile singleton
+    m_localUserId = core::UserProfile::instance().userId();
     
     // Connect TCP signals
     connect(m_connectionManager, &communication::TcpConnectionManager::messageReceived,
@@ -36,6 +41,16 @@ MessageService::MessageService(QObject* parent)
                 storeMessage(message);
                 emit messageReceived(message);
                 qInfo() << "[MessageService] Echo message received:" << message.content().left(30);
+            });
+    
+    connect(m_fileTransferService, &FileTransferService::messageCreated,
+            this, [this](const core::Message& message) {
+                storeMessage(message);
+                if (message.fromUserId() == m_localUserId) {
+                    emit messageSent(message);
+                } else {
+                    emit messageReceived(message);
+                }
             });
     
     qInfo() << "[MessageService] Initialized for user" << m_localUserId 
@@ -61,35 +76,78 @@ void MessageService::sendTextMessage(const QString& peerId, const QString& conte
         return;
     }
     
-    // Create message object
+    // Create complete message object with all required fields
     core::Message message;
-    message.setId(QString::number(QDateTime::currentMSecsSinceEpoch()));
-    // Note: core::Message doesn't have senderId/receiverId setters yet
+    message.setId(core::Message::generateMessageId());  // Use UUID
+    message.setFromUserId(m_localUserId);
+    message.setToUserId(peerId);
     message.setContent(content);
     message.setTimestamp(QDateTime::currentDateTime());
+    message.setStatus(core::MessageStatus::Sending);
     
     // Serialize to Protobuf
-    QByteArray data = serializeTextMessage(content);
+    QByteArray data = serializeTextMessage(message);
+    if (data.isEmpty()) {
+        qCritical() << "[MessageService] Failed to serialize message";
+        message.setStatus(core::MessageStatus::Failed);
+        emit messageFailed(message, "Serialization failed");
+        return;
+    }
     
-    // Store as pending
-    // Note: We'll get the actual TCP message ID from onTcpMessageSent callback
-    // For now, store with temporary ID
+    // Store as pending (use temporary sequence 0, will be updated in callback)
     m_pendingMessages[qMakePair(peerId, 0ULL)] = message;
     
     // Send via TCP
     m_connectionManager->sendMessage(peerId, data, 
                                     communication::MessageQueue::Priority::High);
     
-    qInfo() << "[MessageService] Sending message to" << peerId 
-            << "content:" << content.left(20) << "...";
+    qInfo() << "[MessageService] Message queued for" << peerId 
+            << "id=" << message.id() << "content:" << content.left(20) << "...";
+}
+
+void MessageService::sendImageMessage(const QString& peerId, const QString& filePath) {
+    if (peerId == LocalEchoService::getEchoBotId()) {
+        qInfo() << "[MessageService] File/image sending to Echo Bot is not supported";
+        return;
+    }
+
+    if (!m_fileTransferService) {
+        qWarning() << "[MessageService] FileTransferService is null";
+        return;
+    }
+
+    qInfo() << "[MessageService] Sending image to" << peerId << "path=" << filePath;
+    m_fileTransferService->sendImage(peerId, filePath);
+}
+
+void MessageService::sendFileMessage(const QString& peerId, const QString& filePath) {
+    if (peerId == LocalEchoService::getEchoBotId()) {
+        qInfo() << "[MessageService] File/image sending to Echo Bot is not supported";
+        return;
+    }
+
+    if (!m_fileTransferService) {
+        qWarning() << "[MessageService] FileTransferService is null";
+        return;
+    }
+
+    qInfo() << "[MessageService] Sending file to" << peerId << "path=" << filePath;
+    m_fileTransferService->sendFile(peerId, filePath);
 }
 
 QList<core::Message> MessageService::getMessageHistory(const QString& peerId) const {
+    // Prefer persistent history from database; fall back to in-memory cache
+    QList<core::Message> fromDb = DatabaseService::instance()->loadMessages(m_localUserId, peerId);
+    if (!fromDb.isEmpty()) {
+        return fromDb;
+    }
+
     return m_messageHistory.value(peerId, QList<core::Message>());
 }
 
 void MessageService::clearHistory(const QString& peerId) {
     m_messageHistory.remove(peerId);
+    DatabaseService::instance()->clearHistory(m_localUserId, peerId);
     qInfo() << "[MessageService] Cleared history for" << peerId;
 }
 
@@ -97,7 +155,16 @@ void MessageService::onTcpMessageReceived(QString peerId, QByteArray data) {
     qDebug() << "[MessageService] Received TCP message from" << peerId 
              << "size=" << data.size();
     
-    // Parse Protobuf message
+    flykylin::protocol::TcpMessage tcpMsg;
+    if (!tcpMsg.ParseFromArray(data.data(), data.size())) {
+        qCritical() << "[MessageService] Failed to parse TcpMessage";
+        return;
+    }
+
+    if (tcpMsg.type() != flykylin::protocol::TcpMessage::TEXT) {
+        return;
+    }
+
     core::Message message = parseTextMessage(peerId, data);
     
     if (message.content().isEmpty()) {
@@ -122,8 +189,7 @@ void MessageService::onTcpMessageSent(QString peerId, quint64 messageId) {
     // Find pending message
     core::Message* msg = findPendingMessage(peerId, messageId);
     if (msg) {
-        // TODO: Add status field to Message class
-        // msg->setStatus(core::Message::Sent);
+        msg->setStatus(core::MessageStatus::Sent);
         storeMessage(*msg);
         emit messageSent(*msg);
         
@@ -139,8 +205,7 @@ void MessageService::onTcpMessageFailed(QString peerId, quint64 messageId, QStri
     // Find pending message
     core::Message* msg = findPendingMessage(peerId, messageId);
     if (msg) {
-        // TODO: Add status field to Message class
-        // msg->setStatus(core::Message::Failed);
+        msg->setStatus(core::MessageStatus::Failed);
         storeMessage(*msg);
         emit messageFailed(*msg, error);
         
@@ -149,19 +214,23 @@ void MessageService::onTcpMessageFailed(QString peerId, quint64 messageId, QStri
     }
 }
 
-QByteArray MessageService::serializeTextMessage(const QString& content) {
-    // Create Protobuf TextMessage
+QByteArray MessageService::serializeTextMessage(const core::Message& message) {
+    // Create Protobuf TextMessage with complete fields
     flykylin::protocol::TextMessage textMsg;
-    textMsg.set_content(content.toStdString());
-    textMsg.set_timestamp(QDateTime::currentMSecsSinceEpoch());
-    
+    textMsg.set_message_id(message.id().toStdString());
+    textMsg.set_from_user_id(message.fromUserId().toStdString());
+    textMsg.set_to_user_id(message.toUserId().toStdString());
+    textMsg.set_content(message.content().toStdString());
+    textMsg.set_timestamp(message.timestamp().toMSecsSinceEpoch());
+    textMsg.set_is_group(false);  // Currently only support 1v1
+
     // Serialize TextMessage to payload
     std::string payload;
     if (!textMsg.SerializeToString(&payload)) {
         qCritical() << "[MessageService] Failed to serialize TextMessage";
         return QByteArray();
     }
-    
+
     // Wrap in TcpMessage
     flykylin::protocol::TcpMessage tcpMsg;
     tcpMsg.set_protocol_version(1);
@@ -169,49 +238,54 @@ QByteArray MessageService::serializeTextMessage(const QString& content) {
     tcpMsg.set_sequence(0);  // Will be set by TcpConnection
     tcpMsg.set_payload(payload);
     tcpMsg.set_timestamp(QDateTime::currentMSecsSinceEpoch());
-    
+
     // Serialize TcpMessage
     QByteArray data(tcpMsg.ByteSizeLong(), Qt::Uninitialized);
     if (!tcpMsg.SerializeToArray(data.data(), data.size())) {
         qCritical() << "[MessageService] Failed to serialize TcpMessage";
         return QByteArray();
     }
-    
+
+    qDebug() << "[MessageService] Serialized message id=" << message.id()
+             << "size=" << data.size() << "bytes";
+
     return data;
 }
 
 core::Message MessageService::parseTextMessage(const QString& peerId, const QByteArray& data) {
     core::Message message;
-    
+
     // Parse TcpMessage
     flykylin::protocol::TcpMessage tcpMsg;
     if (!tcpMsg.ParseFromArray(data.data(), data.size())) {
         qCritical() << "[MessageService] Failed to parse TcpMessage";
         return message;
     }
-    
+
     // Check message type
     if (tcpMsg.type() != flykylin::protocol::TcpMessage::TEXT) {
         qWarning() << "[MessageService] Unexpected message type:" << tcpMsg.type();
         return message;
     }
-    
+
     // Parse TextMessage from payload
     flykylin::protocol::TextMessage textMsg;
     if (!textMsg.ParseFromString(tcpMsg.payload())) {
         qCritical() << "[MessageService] Failed to parse TextMessage from payload";
         return message;
     }
-    
-    // Fill Message object
-    message.setId(QString::number(tcpMsg.sequence()));
-    message.setFromUserId(peerId);
-    message.setToUserId(m_localUserId);
+
+    // Fill Message object with complete fields
+    message.setId(QString::fromStdString(textMsg.message_id()));
+    message.setFromUserId(QString::fromStdString(textMsg.from_user_id()));
+    message.setToUserId(QString::fromStdString(textMsg.to_user_id()));
     message.setContent(QString::fromStdString(textMsg.content()));
     message.setTimestamp(QDateTime::fromMSecsSinceEpoch(textMsg.timestamp()));
-    // TODO: Add status field to Message class
-    // message.setStatus(core::Message::Received);
-    
+    message.setStatus(core::MessageStatus::Delivered);
+
+    qDebug() << "[MessageService] Parsed message id=" << message.id()
+             << "from=" << message.fromUserId() << "to=" << message.toUserId();
+
     return message;
 }
 
@@ -221,6 +295,7 @@ void MessageService::storeMessage(const core::Message& message) {
                      : message.fromUserId();
     
     m_messageHistory[peerId].append(message);
+    DatabaseService::instance()->appendMessage(message, m_localUserId);
     
     qDebug() << "[MessageService] Stored message, history size for" << peerId 
              << "=" << m_messageHistory[peerId].size();

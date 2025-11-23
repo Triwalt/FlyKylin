@@ -1,85 +1,172 @@
 /**
  * @file UserProfile.cpp
- * @brief 用户配置数据模型实现
+ * @brief 用户配置单例实现
  * @author FlyKylin Team
- * @date 2025-11-19
+ * @date 2024-11-20
  */
 
 #include "UserProfile.h"
 #include <QUuid>
-#include <QRegularExpression>
-#include <QJsonDocument>
+#include <QSettings>
+#include <QHostInfo>
+#include <QNetworkInterface>
+#include <QDebug>
 
-namespace FlyKylin {
-namespace Core {
-namespace Config {
+namespace flykylin {
+namespace core {
+
+UserProfile& UserProfile::instance() {
+    static UserProfile instance;
+    return instance;
+}
 
 UserProfile::UserProfile()
-    : m_createdAt(QDateTime::currentSecsSinceEpoch())
-    , m_updatedAt(QDateTime::currentSecsSinceEpoch())
+    : m_createdAt(0)
+    , m_updatedAt(0)
 {
+    load();
+    // 默认情况下，运行时有效ID与持久化UUID一致
+    m_effectiveUserId = m_uuid;
+    qInfo() << "[UserProfile] Initialized for user" << m_uuid;
 }
 
-UserProfile::UserProfile(const QString& uuid, const QString& userName)
-    : m_uuid(uuid)
-    , m_userName(userName)
-    , m_createdAt(QDateTime::currentSecsSinceEpoch())
-    , m_updatedAt(QDateTime::currentSecsSinceEpoch())
-{
-}
-
-QJsonObject UserProfile::toJson() const
-{
-    QJsonObject json;
-    json["uuid"] = m_uuid;
-    json["user_name"] = m_userName;
-    json["host_name"] = m_hostName;
-    json["avatar_path"] = m_avatarPath;
-    json["mac_address"] = m_macAddress;
-    json["created_at"] = m_createdAt;
-    json["updated_at"] = m_updatedAt;
-    return json;
-}
-
-UserProfile UserProfile::fromJson(const QJsonObject& json)
-{
-    UserProfile profile;
-    profile.m_uuid = json["uuid"].toString();
-    profile.m_userName = json["user_name"].toString();
-    profile.m_hostName = json["host_name"].toString();
-    profile.m_avatarPath = json["avatar_path"].toString();
-    profile.m_macAddress = json["mac_address"].toString();
-    profile.m_createdAt = json["created_at"].toInteger();
-    profile.m_updatedAt = json["updated_at"].toInteger();
-    return profile;
-}
-
-bool UserProfile::isValidUuid(const QString& uuid)
-{
-    if (uuid.isEmpty()) {
-        return false;
+void UserProfile::load() {
+    QSettings settings("FlyKylin", "FlyKylin");
+    
+    // 加载UUID（如果不存在则生成新的）
+    m_uuid = settings.value("uuid").toString();
+    if (m_uuid.isEmpty()) {
+        // 首次运行，生成新UUID
+        m_uuid = generateUuid();
+        m_createdAt = QDateTime::currentSecsSinceEpoch();
+        m_updatedAt = m_createdAt;
+        
+        qInfo() << "[UserProfile] First run, generated new UUID:" << m_uuid;
+        save();  // 立即保存
+    } else {
+        m_createdAt = settings.value("createdAt", 0).toLongLong();
+        m_updatedAt = settings.value("updatedAt", 0).toLongLong();
+        
+        qInfo() << "[UserProfile] Loaded existing UUID:" << m_uuid;
     }
     
-    // UUID格式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    // 例如: a1b2c3d4-e5f6-4012-8901-9abcdef01234
-    QRegularExpression uuidRegex(
-        R"(^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)",
-        QRegularExpression::CaseInsensitiveOption
-    );
+    // 加载其他配置（使用默认值）
+    m_hostName = settings.value("hostName", getSystemHostName()).toString();
+    m_userName = settings.value("userName", m_hostName).toString();
+    m_avatarPath = settings.value("avatarPath").toString();
+    m_macAddress = settings.value("macAddress", getMacAddress()).toString();
     
-    return uuidRegex.match(uuid).hasMatch();
+    qDebug() << "[UserProfile] User:" << m_userName 
+             << "Host:" << m_hostName 
+             << "MAC:" << m_macAddress;
 }
 
-void UserProfile::touch()
-{
-    m_updatedAt = QDateTime::currentSecsSinceEpoch();
+void UserProfile::save() {
+    QSettings settings("FlyKylin", "FlyKylin");
+    
+    settings.setValue("uuid", m_uuid);
+    settings.setValue("userName", m_userName);
+    settings.setValue("hostName", m_hostName);
+    settings.setValue("avatarPath", m_avatarPath);
+    settings.setValue("macAddress", m_macAddress);
+    settings.setValue("createdAt", m_createdAt);
+    settings.setValue("updatedAt", m_updatedAt);
+    
+    settings.sync();
+    
+    if (settings.status() != QSettings::NoError) {
+        qCritical() << "[UserProfile] Failed to save settings";
+    } else {
+        qDebug() << "[UserProfile] Settings saved successfully";
+    }
 }
 
-bool UserProfile::isValid() const
-{
-    return !m_uuid.isEmpty() && !m_userName.isEmpty();
+void UserProfile::setUserName(const QString& userName) {
+    if (m_userName != userName) {
+        m_userName = userName;
+        m_updatedAt = QDateTime::currentSecsSinceEpoch();
+        save();
+        qInfo() << "[UserProfile] User name updated to:" << userName;
+    }
 }
 
-} // namespace Config
-} // namespace Core
-} // namespace FlyKylin
+void UserProfile::setHostName(const QString& hostName) {
+    if (m_hostName != hostName) {
+        m_hostName = hostName;
+        m_updatedAt = QDateTime::currentSecsSinceEpoch();
+        save();
+    }
+}
+
+void UserProfile::setAvatarPath(const QString& avatarPath) {
+    if (m_avatarPath != avatarPath) {
+        m_avatarPath = avatarPath;
+        m_updatedAt = QDateTime::currentSecsSinceEpoch();
+        save();
+    }
+}
+
+void UserProfile::setMacAddress(const QString& macAddress) {
+    if (m_macAddress != macAddress) {
+        m_macAddress = macAddress;
+        m_updatedAt = QDateTime::currentSecsSinceEpoch();
+        save();
+        qInfo() << "[UserProfile] MAC address updated to:" << macAddress;
+    }
+}
+
+void UserProfile::setInstanceSuffix(const QString& suffix) {
+    QString newId = m_uuid;
+    if (!suffix.isEmpty()) {
+        newId += suffix;
+    }
+
+    if (m_effectiveUserId == newId) {
+        return;
+    }
+
+    m_effectiveUserId = newId;
+    qInfo() << "[UserProfile] Instance suffix set to:" << suffix
+            << "effective userId:" << m_effectiveUserId;
+}
+
+bool UserProfile::isValid() const {
+    return !m_uuid.isEmpty() && 
+           !m_userName.isEmpty() &&
+           QUuid(m_uuid).isNull() == false;  // 验证UUID格式
+}
+
+QString UserProfile::generateUuid() {
+    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+QString UserProfile::getSystemHostName() {
+    QString hostName = QHostInfo::localHostName();
+    if (hostName.isEmpty()) {
+        hostName = "UnknownHost";
+    }
+    return hostName;
+}
+
+QString UserProfile::getMacAddress() {
+    // 获取第一个非回环网络接口的MAC地址
+    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+    
+    for (const QNetworkInterface& interface : interfaces) {
+        // 跳过回环接口和未激活的接口
+        if (interface.flags().testFlag(QNetworkInterface::IsLoopBack) ||
+            !interface.flags().testFlag(QNetworkInterface::IsUp)) {
+            continue;
+        }
+        
+        QString mac = interface.hardwareAddress();
+        if (!mac.isEmpty()) {
+            return mac;
+        }
+    }
+    
+    return "00:00:00:00:00:00";  // 默认值
+}
+
+} // namespace core
+} // namespace flykylin

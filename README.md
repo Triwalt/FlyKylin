@@ -8,19 +8,21 @@
 
 **完整工作流指南**：[`.windsurf/agent_workflow.md`](.windsurf/agent_workflow.md)
 
-## 🔥 架构重构进行中
+## 📌 当前实现状态（2024-11）
 
-**当前状态**: Sprint 2（架构现代化）进行中 - [查看详情](./docs/architecture/REFACTORING_SUMMARY.md)
+- UI 仍为 **Qt Widgets**（`MainWindow`/`PeerListWidget`）；`src/ui/qml` 仅作为未来蓝图，尚未接入。
+- 核心通信继续依赖 **Qt 信号槽**；`QCoro` 仅在 `UdpDiscoveryAdapter` 注释中占位，尚未启用。
+- 构建流程切换为 **Release-only CMake Preset**（`cmake --preset windows-release`），避免 Debug/Release 混链。
+- Protobuf 代码尚未生成上线，`flykylin_protocol` 需要重新接入构建。
 
-我们正在将FlyKylin从传统C++/Qt架构演进为现代AI友好架构：
-- ✅ **CMakePresets**: 一键构建（`cmake --preset windows-release`）
-- ✅ **六边形架构**: 接口抽象层（`I_NetworkAdapter`, `I_MessageSerializer`）
-- ⏳ **Protobuf**: 结构化通信协议
-- 📅 **QML UI**: 声明式界面（Sprint 3）
-- 📅 **C++20协程**: 异步代码线性化（Sprint 4）
-- 📅 **Docker环境**: 5分钟极速构建（Sprint 5）
+### 近期工作重点
+1. **修复 Release 链路**：Preset/CI 强制 Release，清理残余脚本，确保 `_ITERATOR_DEBUG_LEVEL` 不再冲突。
+2. **恢复 Protobuf/聊天功能**：重启 `messages.proto` 生成 + 核心发送接收服务。
+3. **保持 UI 可用**：继续使用 Widgets，待功能稳定后再评估 QML 迁移。
 
-**目标**: 构建时间-75%，代码量-40%，AI生成成功率+25% → [完整路线图](./docs/architecture/REFACTORING_ROADMAP.md)
+## 🗺️ 架构提案（供参考）
+
+现代化方案已在 [ARCHITECTURE_PROPOSAL.md](./ARCHITECTURE_PROPOSAL.md) 及 `docs/architecture/archive/` 中记录，作为未来演进的蓝图，当前实现尚未落地。
 
 ## 🎯 项目愿景
 

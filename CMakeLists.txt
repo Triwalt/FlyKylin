@@ -7,7 +7,7 @@ project(FlyKylin
 )
 
 # C++20标准
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -55,7 +55,6 @@ message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 
 # 查找依赖
 # Qt 6.9.3路径 (D:/Qt/6.9.3/msvc2022_64)
-set(CMAKE_PREFIX_PATH "D:/Qt/6.9.3/msvc2022_64" CACHE PATH "Qt installation path")
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS
     Core
@@ -65,18 +64,20 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS
     Sql
     Concurrent
     Test
+    Qml
+    Quick
 )
 
-# Protobuf（必需，用于结构化通信）
-# 强制使用vcpkg的Protobuf，避免系统路径干扰
-if(VCPKG_INSTALLED_DIR)
-    set(Protobuf_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/protobuf" CACHE PATH "Protobuf CMake config directory" FORCE)
-    message(STATUS "Forcing Protobuf from vcpkg: ${Protobuf_DIR}")
+# Protobuf + Abseil + utf8_range are provided by vcpkg; prefer the vcpkg package configs
+if(VCPKG_INSTALLED_DIR AND VCPKG_TARGET_TRIPLET)
+    set(Protobuf_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/protobuf")
+    set(absl_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/absl")
+    set(utf8_range_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/utf8_range")
 endif()
+
 find_package(Protobuf CONFIG REQUIRED)
-message(STATUS "Protobuf found: ${Protobuf_VERSION}")
-message(STATUS "Protobuf DIR: ${Protobuf_DIR}")
-include_directories(${Protobuf_INCLUDE_DIRS})
+find_package(absl CONFIG REQUIRED)
+find_package(utf8_range CONFIG REQUIRED)
 
 # ONNX Runtime
 # 注意：Python环境中有onnxruntime 1.23.2，C++ API需要单独下载

@@ -28,6 +28,17 @@ enum class ConnectionState {
 };
 
 /**
+ * @brief Handshake state enum
+ */
+enum class HandshakeState {
+    NotStarted,      ///< Handshake not started
+    RequestSent,     ///< Handshake request sent, waiting for response
+    ResponseSent,    ///< Handshake response sent (server side)
+    Completed,       ///< Handshake completed successfully
+    Failed           ///< Handshake failed
+};
+
+/**
  * @brief Single TCP connection with state machine, retry, and heartbeat
  * 
  * Features:
@@ -51,6 +62,16 @@ public:
     explicit TcpConnection(const QString& peerId, 
                           const QString& peerIp, 
                           quint16 peerPort, 
+                          QObject* parent = nullptr);
+    
+    /**
+     * @brief Constructor for an already-connected inbound socket
+     * @param peerId Peer user ID (typically derived from peer IP)
+     * @param existingSocket Existing QTcpSocket that is already connected
+     * @param parent Parent QObject
+     */
+    explicit TcpConnection(const QString& peerId,
+                          QTcpSocket* existingSocket,
                           QObject* parent = nullptr);
     
     /**
@@ -125,6 +146,17 @@ signals:
      */
     void errorOccurred(QString error);
     
+    /**
+     * @brief Handshake completed successfully
+     */
+    void handshakeCompleted();
+    
+    /**
+     * @brief Handshake failed
+     * @param error Error description
+     */
+    void handshakeFailed(QString error);
+    
 private slots:
     // Socket event handlers
     void onConnected();
@@ -135,6 +167,7 @@ private slots:
     // Timer handlers
     void onHeartbeatTimeout();
     void onReconnectTimeout();
+    void onHandshakeTimeout();
     
 private:
     // State machine
@@ -149,8 +182,16 @@ private:
     void scheduleReconnect();
     void attemptReconnect();
     
+    // Handshake mechanism
+    void startHandshake();
+    void sendHandshakeRequest();
+    void sendHandshakeResponse(bool accepted, const QString& errorMsg = QString());
+    void handleHandshakeRequest(const QByteArray& payload);
+    void handleHandshakeResponse(const QByteArray& payload);
+    
     // Data processing
     void processIncomingData();
+    void processTcpMessage(const QByteArray& messageData);
     quint32 readMessageLength();
     
     // Member variables
@@ -163,16 +204,23 @@ private:
     
     QTimer* m_heartbeatTimer;      ///< Heartbeat timer (30s)
     QTimer* m_reconnectTimer;      ///< Reconnect timer
+    QTimer* m_handshakeTimer;      ///< Handshake timeout timer
     
     int m_retryCount;              ///< Retry attempt counter
     QDateTime m_lastActivity;      ///< Last activity timestamp
     
+    HandshakeState m_handshakeState;  ///< Handshake state
+    QString m_peerName;            ///< Peer username (after handshake)
+    
     QByteArray m_receiveBuffer;    ///< Receive buffer
     quint64 m_nextSequence;        ///< Next message sequence number
+    
+    bool m_isIncoming;             ///< True if this connection was accepted by TcpServer
     
     // Constants
     static constexpr int kHeartbeatInterval = 30000;  ///< 30 seconds
     static constexpr int kTimeoutThreshold = 60000;   ///< 60 seconds timeout
+    static constexpr int kHandshakeTimeout = 5000;    ///< 5 seconds handshake timeout
 };
 
 } // namespace communication

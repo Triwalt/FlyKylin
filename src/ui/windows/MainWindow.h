@@ -18,6 +18,9 @@ namespace flykylin {
 namespace core {
     class PeerDiscovery;
 }
+namespace communication {
+    class TcpServer;
+}
 namespace ui {
     class PeerListViewModel;
     class PeerListWidget;
@@ -81,6 +84,11 @@ private slots:
      */
     void onChatWindowClosed(const QString& userId);
 
+    /**
+     * @brief 打开目录选择器
+     */
+    void onSelectDownloadDirectory();
+
 private:
     /**
      * @brief 打开聊天窗口
@@ -89,6 +97,7 @@ private:
     void openChatWindow(const QString& userId);
     // 核心服务
     std::unique_ptr<flykylin::core::PeerDiscovery> m_peerDiscovery;
+    std::unique_ptr<flykylin::communication::TcpServer> m_tcpServer;
 
     // UI组件
     QWidget* m_centralWidget;
@@ -97,6 +106,7 @@ private:
     PeerListViewModel* m_peerListViewModel;
     PeerListWidget* m_peerListWidget;
     QLabel* m_statusLabel;
+    QPushButton* m_settingsButton;
     
     // Chat windows管理 (userId -> ChatWindow*)
     QMap<QString, ChatWindow*> m_chatWindows;

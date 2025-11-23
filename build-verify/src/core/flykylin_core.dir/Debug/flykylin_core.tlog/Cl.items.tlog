@@ -1,0 +1,14 @@
+E:\Project\FlyKylin\build-verify\src\core\flykylin_core_autogen\mocs_compilation_Debug.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\mocs_compilation_Debug.obj
+E:\Project\FlyKylin\src\core\config\UserProfile.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\UserProfile.obj
+E:\Project\FlyKylin\src\core\config\ConfigManager.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\ConfigManager.obj
+E:\Project\FlyKylin\src\core\models\PeerNode.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\PeerNode.obj
+E:\Project\FlyKylin\src\core\models\Message.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\Message.obj
+E:\Project\FlyKylin\src\core\adapters\ProtobufSerializer.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\ProtobufSerializer.obj
+E:\Project\FlyKylin\src\core\communication\NetworkInterfaceCache.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\NetworkInterfaceCache.obj
+E:\Project\FlyKylin\src\core\communication\PeerDiscovery.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\PeerDiscovery.obj
+E:\Project\FlyKylin\src\core\communication\RetryStrategy.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\RetryStrategy.obj
+E:\Project\FlyKylin\src\core\communication\TcpConnection.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\TcpConnection.obj
+E:\Project\FlyKylin\src\core\communication\MessageQueue.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\MessageQueue.obj
+E:\Project\FlyKylin\src\core\communication\TcpConnectionManager.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\TcpConnectionManager.obj
+E:\Project\FlyKylin\src\core\services\MessageService.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\MessageService.obj
+E:\Project\FlyKylin\src\core\services\LocalEchoService.cpp;E:\Project\FlyKylin\build-verify\src\core\flykylin_core.dir\Debug\LocalEchoService.obj

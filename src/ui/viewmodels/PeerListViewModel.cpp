@@ -12,10 +12,40 @@ namespace ui {
 PeerListViewModel::PeerListViewModel(QObject* parent)
     : QObject(parent)
     , m_model(new QStandardItemModel(this))
+    , m_sessionModel(new QStandardItemModel(this))
 {
     // 设置列标题
     m_model->setHorizontalHeaderLabels({"用户", "状态"});
+    m_sessionModel->setHorizontalHeaderLabels({"用户", "状态"});
+
+    // Set role names for QML
+    QHash<int, QByteArray> roles;
+    roles[Qt::DisplayRole] = "display"; // Default display text
+    roles[Qt::UserRole] = "userId";
+    roles[Qt::UserRole + 1] = "userName";
+    roles[Qt::UserRole + 2] = "ipAddress";
+    roles[Qt::UserRole + 3] = "isOnline";
+    m_model->setItemRoleNames(roles);
+    m_sessionModel->setItemRoleNames(roles);
+
     qDebug() << "[PeerListViewModel] Created";
+}
+
+void PeerListViewModel::selectPeer(const QString& userId)
+{
+    if (m_peers.contains(userId)) {
+        qDebug() << "[PeerListViewModel] Selected peer:" << userId;
+
+        // 始终通知 ChatViewModel 打开该会话，即使当前选中ID未变
+        if (m_currentPeerId != userId) {
+            m_currentPeerId = userId;
+            emit currentPeerIdChanged();
+        }
+
+        emit peerSelected(m_peers[userId]);
+    } else {
+        qWarning() << "[PeerListViewModel] Selected peer not found:" << userId;
+    }
 }
 
 void PeerListViewModel::setFilterKeyword(const QString& keyword)
@@ -31,6 +61,62 @@ void PeerListViewModel::setFilterKeyword(const QString& keyword)
     updateModel();
 }
 
+bool PeerListViewModel::isPeerOnline(const QString& userId) const
+{
+    auto it = m_peers.constFind(userId);
+    if (it == m_peers.constEnd()) {
+        return false;
+    }
+    return it->isOnline();
+}
+
+void PeerListViewModel::requestPeerDetails(const QString& userId)
+{
+    if (!m_peers.contains(userId)) {
+        qWarning() << "[PeerListViewModel] requestPeerDetails: peer not found" << userId;
+        return;
+    }
+
+    const auto& peer = m_peers[userId];
+    QStringList groups;
+    emit peerDetailsRequested(peer.userId(),
+                              peer.userName(),
+                              peer.hostName(),
+                              peer.ipAddress().toString(),
+                              peer.tcpPort(),
+                              groups);
+}
+
+void PeerListViewModel::requestAddToContacts(const QString& userId)
+{
+    if (!m_peers.contains(userId)) {
+        qWarning() << "[PeerListViewModel] requestAddToContacts: peer not found" << userId;
+        return;
+    }
+
+    const auto& peer = m_peers[userId];
+    emit addToContactsRequested(peer.userId(),
+                                peer.userName(),
+                                peer.hostName(),
+                                peer.ipAddress().toString(),
+                                peer.tcpPort());
+}
+
+void PeerListViewModel::requestAddToGroup(const QString& userId)
+{
+    if (!m_peers.contains(userId)) {
+        qWarning() << "[PeerListViewModel] requestAddToGroup: peer not found" << userId;
+        return;
+    }
+
+    const auto& peer = m_peers[userId];
+    emit addToGroupRequested(peer.userId(),
+                             peer.userName(),
+                             peer.hostName(),
+                             peer.ipAddress().toString(),
+                             peer.tcpPort());
+}
+
 void PeerListViewModel::onPeerDiscovered(const flykylin::core::PeerNode& peer)
 {
     QString userId = peer.userId();
@@ -39,21 +125,44 @@ void PeerListViewModel::onPeerDiscovered(const flykylin::core::PeerNode& peer)
              << peer.userName() << "@" << peer.hostName();
     
     // 更新或添加节点
-    m_peers[userId] = peer;
-    
+    bool isNewPeer = !m_peers.contains(userId);
+    flykylin::core::PeerNode updatedPeer = peer;
+    updatedPeer.setOnline(true);
+    m_peers[userId] = updatedPeer;
+
     // 更新显示
     updateModel();
     emit onlineCountChanged();
+    ++m_onlineVersion;
+    emit onlineVersionChanged();
+
+    // 如果当前选中的节点被更新（例如对方修改了昵称），重新发出选中信号，
+    // 让 ChatViewModel 等订阅者刷新显示名称。
+    if (!isNewPeer && m_currentPeerId == userId) {
+        emit peerSelected(peer);
+    }
 }
 
 void PeerListViewModel::onPeerOffline(const QString& userId)
 {
     qDebug() << "[PeerListViewModel] Peer offline:" << userId;
-    
-    if (m_peers.remove(userId) > 0) {
-        updateModel();
-        emit onlineCountChanged();
+
+    auto it = m_peers.find(userId);
+    if (it == m_peers.end()) {
+        return;
     }
+
+    flykylin::core::PeerNode peer = it.value();
+    peer.setOnline(false);
+    it.value() = peer;
+    emit peerOfflineNotified(peer.userId(),
+                             peer.userName(),
+                             peer.ipAddress().toString());
+
+    updateModel();
+    emit onlineCountChanged();
+    ++m_onlineVersion;
+    emit onlineVersionChanged();
 }
 
 void PeerListViewModel::onPeerHeartbeat(const QString& userId)
@@ -71,6 +180,7 @@ void PeerListViewModel::updateModel()
 {
     // 清空现有模型
     m_model->removeRows(0, m_model->rowCount());
+    m_sessionModel->removeRows(0, m_sessionModel->rowCount());
     
     // 遍历所有节点，应用过滤并添加到模型
     for (auto it = m_peers.constBegin(); it != m_peers.constEnd(); ++it) {
@@ -80,33 +190,57 @@ void PeerListViewModel::updateModel()
             continue;
         }
         
-        QList<QStandardItem*> rowItems;
-        
-        // 用户名列
-        auto* nameItem = createPeerItem(peer);
-        rowItems.append(nameItem);
-        
-        // 状态列
-        auto* statusItem = new QStandardItem();
-        statusItem->setText(peer.isOnline() ? "在线" : "离线");
-        statusItem->setForeground(peer.isOnline() ? QColor(Qt::green) : QColor(Qt::gray));
-        statusItem->setEditable(false);
-        rowItems.append(statusItem);
-        
-        m_model->appendRow(rowItems);
+        // 会话列表：包含在线和离线用户
+        QList<QStandardItem*> sessionRow;
+
+        auto* sessionNameItem = createPeerItem(peer);
+        sessionRow.append(sessionNameItem);
+
+        auto* sessionStatusItem = new QStandardItem();
+        sessionStatusItem->setText(peer.isOnline() ? "在线" : "离线");
+        sessionStatusItem->setForeground(peer.isOnline() ? QColor(Qt::green) : QColor(Qt::gray));
+        sessionStatusItem->setEditable(false);
+        sessionRow.append(sessionStatusItem);
+
+        m_sessionModel->appendRow(sessionRow);
+
+        // 在线列表：仅包含当前在线用户
+        if (peer.isOnline()) {
+            QList<QStandardItem*> onlineRow;
+
+            auto* onlineNameItem = createPeerItem(peer);
+            onlineRow.append(onlineNameItem);
+
+            auto* onlineStatusItem = new QStandardItem();
+            onlineStatusItem->setText("在线");
+            onlineStatusItem->setForeground(QColor(Qt::green));
+            onlineStatusItem->setEditable(false);
+            onlineRow.append(onlineStatusItem);
+
+            m_model->appendRow(onlineRow);
+        }
     }
     
-    qDebug() << "[PeerListViewModel] Model updated, total:" << m_model->rowCount();
+    qDebug() << "[PeerListViewModel] Model updated, online:" << m_model->rowCount()
+             << "sessions:" << m_sessionModel->rowCount();
+    emit sessionCountChanged();
 }
 
 QStandardItem* PeerListViewModel::createPeerItem(const flykylin::core::PeerNode& peer)
 {
     auto* item = new QStandardItem();
     
-    // 显示文本：用户名 (主机名)
-    QString displayText = QString("%1 (%2)")
-                            .arg(peer.userName().isEmpty() ? peer.userId() : peer.userName())
-                            .arg(peer.hostName());
+    // 显示文本：用户名 (主机名) [IP:端口]
+    QString namePart = peer.userName().isEmpty() ? peer.userId() : peer.userName();
+    QString hostPart = peer.hostName().isEmpty() ? "-" : peer.hostName();
+    QString ipPart = peer.ipAddress().toString();
+    QString portPart = peer.tcpPort() > 0 ? QString::number(peer.tcpPort()) : QStringLiteral("-");
+
+    QString displayText = QString("%1 (%2) [%3:%4]")
+                            .arg(namePart)
+                            .arg(hostPart)
+                            .arg(ipPart)
+                            .arg(portPart);
     item->setText(displayText);
     
     // 设置工具提示显示详细信息
@@ -120,6 +254,9 @@ QStandardItem* PeerListViewModel::createPeerItem(const flykylin::core::PeerNode&
     
     // 存储完整的userId用于后续操作
     item->setData(peer.userId(), Qt::UserRole);
+    item->setData(peer.userName(), Qt::UserRole + 1);
+    item->setData(peer.ipAddress().toString(), Qt::UserRole + 2);
+    item->setData(peer.isOnline(), Qt::UserRole + 3);
     
     // 设置为不可编辑
     item->setEditable(false);
