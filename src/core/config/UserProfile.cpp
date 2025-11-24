@@ -42,7 +42,6 @@ void UserProfile::load() {
         m_updatedAt = m_createdAt;
         
         qInfo() << "[UserProfile] First run, generated new UUID:" << m_uuid;
-        save();  // 立即保存
     } else {
         m_createdAt = settings.value("createdAt", 0).toLongLong();
         m_updatedAt = settings.value("updatedAt", 0).toLongLong();
@@ -50,15 +49,30 @@ void UserProfile::load() {
         qInfo() << "[UserProfile] Loaded existing UUID:" << m_uuid;
     }
     
-    // 加载其他配置（使用默认值）
-    m_hostName = settings.value("hostName", getSystemHostName()).toString();
-    m_userName = settings.value("userName", m_hostName).toString();
+    // 加载其他配置（使用默认值），并修复历史上保存为空字符串的情况
+    m_hostName = settings.value("hostName").toString();
+    if (m_hostName.isEmpty()) {
+        m_hostName = getSystemHostName();
+    }
+
+    m_userName = settings.value("userName").toString();
+    if (m_userName.isEmpty()) {
+        m_userName = m_hostName;
+    }
+
     m_avatarPath = settings.value("avatarPath").toString();
-    m_macAddress = settings.value("macAddress", getMacAddress()).toString();
+
+    m_macAddress = settings.value("macAddress").toString();
+    if (m_macAddress.isEmpty()) {
+        m_macAddress = getMacAddress();
+    }
     
     qDebug() << "[UserProfile] User:" << m_userName 
              << "Host:" << m_hostName 
              << "MAC:" << m_macAddress;
+
+    // 确保首次运行或修复后的配置被持久化
+    save();
 }
 
 void UserProfile::save() {
