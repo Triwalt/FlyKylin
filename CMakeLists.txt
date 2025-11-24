@@ -54,9 +54,9 @@ message(STATUS "Building for ${PLATFORM_NAME}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 
 # 查找依赖
-# Qt 6.9.3路径 (D:/Qt/6.9.3/msvc2022_64)
+# Qt6 由本地环境或CI安装提供，这里不强制具体版本，只要是 Qt6 即可
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS
+find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
