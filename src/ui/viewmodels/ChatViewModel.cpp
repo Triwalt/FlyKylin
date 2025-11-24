@@ -102,12 +102,18 @@ void ChatViewModel::setCurrentPeer(const QString& peerId, const QString& peerNam
 void ChatViewModel::setCurrentGroup(const QString& groupId,
                                     const QString& groupName,
                                     const QStringList& memberIds) {
-    if (groupId.isEmpty() || memberIds.isEmpty()) {
-        qWarning() << "[ChatViewModel] setCurrentGroup: invalid group or empty members";
+    if (groupId.isEmpty()) {
+        qWarning() << "[ChatViewModel] setCurrentGroup: invalid group id";
         return;
     }
 
-    qInfo() << "[ChatViewModel] Switching to group" << groupId << "(" << groupName << ")";
+    if (memberIds.isEmpty()) {
+        qWarning() << "[ChatViewModel] setCurrentGroup: group" << groupId
+                   << "has no members yet, opening empty group view";
+    }
+
+    qInfo() << "[ChatViewModel] Switching to group" << groupId << "(" << groupName
+            << ") members=" << memberIds;
 
     m_isGroupChat = true;
     m_currentGroupId = groupId;

@@ -46,6 +46,23 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Label {
+                text: qsTr("UUID")
+                font: Style.fontBody
+                color: Style.textSecondary
+                Layout.preferredWidth: 64
+            }
+            Label {
+                text: root.userId.split(":")[0]
+                font: Style.fontBody
+                color: Style.textPrimary
+                Layout.fillWidth: true
+                elide: Text.ElideRight
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Label {
                 text: qsTr("名称")
                 font: Style.fontBody
                 color: Style.textSecondary

@@ -59,6 +59,52 @@ ApplicationWindow {
         property string groupsJson: "[]"
     }
 
+    function normalizeGroupMembers(members) {
+        var result = []
+        if (!members)
+            return result
+
+        if (members instanceof Array) {
+            for (var i = 0; i < members.length; ++i) {
+                result.push(members[i])
+            }
+            return result
+        }
+
+        var keys = Object.keys(members)
+        for (var i = 0; i < keys.length; ++i) {
+            var k = keys[i]
+            if (k === "length")
+                continue
+            var idx = parseInt(k)
+            if (isNaN(idx))
+                continue
+            if (members[k] !== undefined)
+                result.push(members[k])
+        }
+        return result
+    }
+
+    function countGroupMembers(members) {
+        if (!members)
+            return 0
+        if (typeof members.length === "number")
+            return members.length
+
+        var n = 0
+        var keys = Object.keys(members)
+        for (var i = 0; i < keys.length; ++i) {
+            var k = keys[i]
+            if (k === "length")
+                continue
+            var idx = parseInt(k)
+            if (isNaN(idx))
+                continue
+            ++n
+        }
+        return n
+    }
+
     function loadContacts() {
         contactsModel.clear()
         if (!contactsStore.contactsJson || contactsStore.contactsJson.length === 0)
@@ -77,6 +123,15 @@ ApplicationWindow {
                                          ipAddress: c.ipAddress || "",
                                          tcpPort: c.tcpPort || 0
                                      })
+
+                if (peerListViewModel && peerListViewModel.upsertPeerFromContact) {
+                    peerListViewModel.upsertPeerFromContact(
+                                c.userId,
+                                c.userName || "",
+                                c.hostName || "",
+                                c.ipAddress || "",
+                                c.tcpPort || 0)
+                }
             }
         } catch (e) {
             console.log("[Contacts] Failed to parse contactsJson", e)
@@ -467,22 +522,14 @@ ApplicationWindow {
                                                     }
 
                                                     Label {
-                                                        text: {
-                                                            var count = 0
-                                                            if (members && typeof members.length === "number")
-                                                                count = members.length
-                                                            return qsTr("成员数: %1").arg(count)
-                                                        }
+                                                        text: qsTr("成员数: %1").arg(countGroupMembers(members))
                                                         font: Style.fontCaption
                                                         color: Style.textSecondary
                                                     }
                                                 }
 
                                                 onClicked: {
-                                                    var m = members
-                                                    if (!m || typeof m.length !== "number") {
-                                                        m = []
-                                                    }
+                                                    var m = normalizeGroupMembers(members)
                                                     chatViewModel.setCurrentGroup(id, name, m)
                                                     // 保持在“会话”页，只切换右侧聊天为该群
                                                     leftTabs.currentIndex = 0
@@ -585,6 +632,30 @@ ApplicationWindow {
                                                 }
                                             }
                                         }
+
+                                        Menu {
+                                            id: contactContextMenu
+                                            MenuItem {
+                                                text: qsTr("删除联系人")
+                                                onTriggered: {
+                                                    if (index >= 0 && index < contactsModel.count) {
+                                                        contactsModel.remove(index)
+                                                        saveContacts()
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.RightButton
+                                            onClicked: function(mouse) {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    contactContextMenu.open()
+                                                    mouse.accepted = true
+                                                }
+                                            }
+                                        }
                                     }
 
                                     ScrollBar.vertical: ScrollBar {}
@@ -639,22 +710,14 @@ ApplicationWindow {
                                             }
 
                                             Label {
-                                                text: {
-                                                    var count = 0
-                                                    if (members && typeof members.length === "number")
-                                                        count = members.length
-                                                    return qsTr("成员数: %1").arg(count)
-                                                }
+                                                text: qsTr("成员数: %1").arg(countGroupMembers(members))
                                                 font: Style.fontCaption
                                                 color: Style.textSecondary
                                             }
                                         }
 
                                         onClicked: {
-                                            var m = members
-                                            if (!m || typeof m.length !== "number") {
-                                                m = []
-                                            }
+                                            var m = normalizeGroupMembers(members)
                                             chatViewModel.setCurrentGroup(id, name, m)
                                             // 打开群聊后回到“会话”页，方便随时切换到其他会话
                                             leftTabs.currentIndex = 0
@@ -782,13 +845,14 @@ ApplicationWindow {
                                     var name = groupNameField.text && groupNameField.text.length > 0
                                                ? groupNameField.text
                                                : qsTr("新群组")
+                                    var membersArray = normalizeGroupMembers(selectedIds)
                                     groupsModel.append({
                                                            id: groupId,
                                                            name: name,
-                                                           members: selectedIds
+                                                           members: membersArray
                                                        })
                                     saveGroups()
-                                    chatViewModel.setCurrentGroup(groupId, name, selectedIds)
+                                    chatViewModel.setCurrentGroup(groupId, name, membersArray)
                                     // 新建群组后也回到“会话”页，左侧展示会话+群聊列表
                                     leftTabs.currentIndex = 0
                                 }
@@ -853,7 +917,7 @@ ApplicationWindow {
             if (index < 0 || index >= groupsModel.count)
                 return
             var g = groupsModel.get(index)
-            var members = g.members ? g.members.slice(0) : []
+            var members = normalizeGroupMembers(g.members)
             if (members.indexOf(pendingUserId) === -1) {
                 members.push(pendingUserId)
                 groupsModel.set(index, {
@@ -906,6 +970,14 @@ ApplicationWindow {
             }
 
             saveContacts()
+
+            if (peerListViewModel && peerListViewModel.upsertPeerFromContact) {
+                peerListViewModel.upsertPeerFromContact(userId,
+                                                        displayName,
+                                                        hostName,
+                                                        ipAddress,
+                                                        tcpPort)
+            }
         }
 
         function onAddToGroupRequested(userId, userName, hostName, ipAddress, tcpPort) {

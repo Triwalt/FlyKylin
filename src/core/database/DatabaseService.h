@@ -4,6 +4,7 @@
 #include <QList>
 #include <QString>
 #include <QSqlDatabase>
+#include <QPair>
 
 #include "core/models/Message.h"
 
@@ -18,6 +19,10 @@ public:
     QList<core::Message> loadMessages(const QString& localUserId, const QString& peerId) const;
     void appendMessage(const core::Message& message, const QString& localUserId);
     void clearHistory(const QString& localUserId, const QString& peerId);
+
+    // 会话列表：按本地用户维度记录与哪些peer有过对话，以及最近时间戳
+    QList<QPair<QString, qint64>> loadSessions(const QString& localUserId) const;
+    void touchSession(const QString& localUserId, const QString& peerId, qint64 lastTimestamp);
 
 private:
     explicit DatabaseService(QObject* parent = nullptr);

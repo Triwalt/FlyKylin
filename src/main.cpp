@@ -82,6 +82,9 @@ int main(int argc, char *argv[]) {
     flykylin::ui::ChatViewModel chatViewModel;
     flykylin::ui::SettingsViewModel settingsViewModel;
 
+    // 在启动时加载历史会话，让“会话”页能显示离线用户的历史对话
+    peerListViewModel.loadHistoricalSessions();
+
     // Connect Services to ViewModels
     QObject::connect(peerDiscovery.get(), &flykylin::core::PeerDiscovery::peerDiscovered,
                      &peerListViewModel, &flykylin::ui::PeerListViewModel::onPeerDiscovered);

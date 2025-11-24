@@ -5,6 +5,8 @@
 
 #include "PeerListViewModel.h"
 #include <QDebug>
+#include "../../core/config/UserProfile.h"
+#include "../../core/database/DatabaseService.h"
 
 namespace flykylin {
 namespace ui {
@@ -25,10 +27,81 @@ PeerListViewModel::PeerListViewModel(QObject* parent)
     roles[Qt::UserRole + 1] = "userName";
     roles[Qt::UserRole + 2] = "ipAddress";
     roles[Qt::UserRole + 3] = "isOnline";
+    roles[Qt::UserRole + 4] = "tcpPort";
     m_model->setItemRoleNames(roles);
     m_sessionModel->setItemRoleNames(roles);
 
     qDebug() << "[PeerListViewModel] Created";
+}
+
+void PeerListViewModel::upsertPeerFromContact(const QString& userId,
+                                              const QString& userName,
+                                              const QString& hostName,
+                                              const QString& ipAddress,
+                                              quint16 tcpPort)
+{
+    if (userId.isEmpty()) {
+        return;
+    }
+
+    flykylin::core::PeerNode node;
+    auto it = m_peers.find(userId);
+    if (it != m_peers.end()) {
+        node = it.value();
+    } else {
+        node.setUserId(userId);
+        node.setOnline(false);
+    }
+
+    if (!userName.isEmpty()) {
+        node.setUserName(userName);
+    }
+    if (!hostName.isEmpty()) {
+        node.setHostName(hostName);
+    }
+    if (!ipAddress.isEmpty()) {
+        node.setIpAddress(ipAddress);
+    }
+    if (tcpPort > 0) {
+        node.setTcpPort(tcpPort);
+    }
+
+    m_peers.insert(userId, node);
+
+    updateModel();
+}
+
+void PeerListViewModel::loadHistoricalSessions()
+{
+    const QString localUserId = flykylin::core::UserProfile::instance().userId();
+    auto* db = flykylin::database::DatabaseService::instance();
+    const auto sessions = db->loadSessions(localUserId);
+
+    qDebug() << "[PeerListViewModel] Loading historical sessions for" << localUserId
+             << "count=" << sessions.size();
+
+    for (const auto& entry : sessions) {
+        const QString& peerId = entry.first;
+        const qint64 lastTs = entry.second;
+
+        if (m_peers.contains(peerId)) {
+            continue; // 已经由PeerDiscovery填充
+        }
+
+        flykylin::core::PeerNode node;
+        node.setUserId(peerId);
+        node.setUserName(peerId); // 缺省情况下使用ID作为名称
+        node.setHostName(QString());
+        node.setIpAddress(QString());
+        node.setTcpPort(0);
+        node.setOnline(false);
+        node.setLastSeen(QDateTime::fromMSecsSinceEpoch(lastTs));
+
+        m_peers.insert(peerId, node);
+    }
+
+    updateModel();
+    emit sessionCountChanged();
 }
 
 void PeerListViewModel::selectPeer(const QString& userId)
@@ -257,6 +330,7 @@ QStandardItem* PeerListViewModel::createPeerItem(const flykylin::core::PeerNode&
     item->setData(peer.userName(), Qt::UserRole + 1);
     item->setData(peer.ipAddress().toString(), Qt::UserRole + 2);
     item->setData(peer.isOnline(), Qt::UserRole + 3);
+    item->setData(static_cast<int>(peer.tcpPort()), Qt::UserRole + 4);
     
     // 设置为不可编辑
     item->setEditable(false);

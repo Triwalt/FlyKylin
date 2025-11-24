@@ -296,6 +296,9 @@ void MessageService::storeMessage(const core::Message& message) {
     
     m_messageHistory[peerId].append(message);
     DatabaseService::instance()->appendMessage(message, m_localUserId);
+    DatabaseService::instance()->touchSession(m_localUserId,
+                                              peerId,
+                                              message.timestamp().toMSecsSinceEpoch());
     
     qDebug() << "[MessageService] Stored message, history size for" << peerId 
              << "=" << m_messageHistory[peerId].size();

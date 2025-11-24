@@ -99,6 +99,16 @@ public:
      */
     Q_INVOKABLE bool isPeerOnline(const QString& userId) const;
 
+    // 从联系人数据补齐/更新指定用户的显示信息（用户名、主机名、IP、端口等）
+    Q_INVOKABLE void upsertPeerFromContact(const QString& userId,
+                                           const QString& userName,
+                                           const QString& hostName,
+                                           const QString& ipAddress,
+                                           quint16 tcpPort);
+
+    // 从数据库加载历史会话（包含已经离线但有聊天记录的用户）
+    void loadHistoricalSessions();
+
 public slots:
     /**
      * @brief 处理发现新节点事件
