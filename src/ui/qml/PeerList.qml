@@ -147,7 +147,14 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
-                            text: model.ipAddress || ""
+                            text: {
+                                var addr = model.ipAddress || "";
+                                var portText = "";
+                                if (model.tcpPort && model.tcpPort > 0) {
+                                    portText = ":" + model.tcpPort;
+                                }
+                                return addr + portText;
+                            }
                             font: Style.fontCaption
                             color: Style.textSecondary
                             elide: Text.ElideRight

@@ -118,6 +118,24 @@ bool DatabaseService::init() {
         qWarning() << "[DatabaseService] Failed to create idx_messages_ts:" << query.lastError().text();
     }
 
+    // 会话表：记录每个本地用户与哪些peer有过对话，以及最近一条消息时间
+    if (!query.exec(
+            "CREATE TABLE IF NOT EXISTS sessions ("
+            "local_user_id TEXT NOT NULL,"
+            "peer_id TEXT NOT NULL,"
+            "last_timestamp INTEGER NOT NULL,"
+            "PRIMARY KEY(local_user_id, peer_id)"
+            ")")) {
+        qCritical() << "[DatabaseService] Failed to create sessions table:" << query.lastError().text();
+        return false;
+    }
+
+    if (!query.exec(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_ts "
+            "ON sessions(local_user_id, last_timestamp)")) {
+        qWarning() << "[DatabaseService] Failed to create idx_sessions_ts:" << query.lastError().text();
+    }
+
     qInfo() << "[DatabaseService] Initialized chat history database at" << m_dbPath;
 
     return true;
@@ -220,6 +238,59 @@ void DatabaseService::appendMessage(const core::Message& message, const QString&
 
     if (!query.exec()) {
         qWarning() << "[DatabaseService] Failed to append message" << message.id()
+                   << ":" << query.lastError().text();
+    }
+}
+
+QList<QPair<QString, qint64>> DatabaseService::loadSessions(const QString& localUserId) const {
+    QList<QPair<QString, qint64>> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT peer_id, last_timestamp "
+        "FROM sessions "
+        "WHERE local_user_id = :local_user_id "
+        "ORDER BY last_timestamp DESC");
+    query.bindValue(":local_user_id", localUserId);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load sessions for" << localUserId
+                   << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        const QString peerId = query.value(0).toString();
+        const qint64 ts = query.value(1).toLongLong();
+        result.append(qMakePair(peerId, ts));
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "sessions for" << localUserId;
+
+    return result;
+}
+
+void DatabaseService::touchSession(const QString& localUserId,
+                                   const QString& peerId,
+                                   qint64 lastTimestamp) {
+    if (!ensureInitialized()) {
+        return;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "INSERT OR REPLACE INTO sessions (local_user_id, peer_id, last_timestamp) "
+        "VALUES (:local_user_id, :peer_id, :last_timestamp)");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":peer_id", peerId);
+    query.bindValue(":last_timestamp", lastTimestamp);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to touch session for" << localUserId << peerId
                    << ":" << query.lastError().text();
     }
 }
