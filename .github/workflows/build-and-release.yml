@@ -160,13 +160,13 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake --preset windows-release `
+        cmake --preset windows-arm64-release `
           -DVCPKG_TARGET_TRIPLET=arm64-windows `
           -DQt6_DIR="$env:Qt6_DIR" `
           -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
     
     - name: Build
-      run: cmake --build --preset windows-release --parallel
+      run: cmake --build --preset windows-arm64-release --parallel
     
     # Note: Cannot run tests on ARM64 build machine
     - name: Package
@@ -180,7 +180,7 @@ jobs:
         $PACKAGE_DIR = "package/$PACKAGE_NAME"
         
         New-Item -ItemType Directory -Force -Path $PACKAGE_DIR
-        Copy-Item "build/windows-release/bin/Release/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
+        Copy-Item "build/windows-arm64-release/bin/FlyKylin.exe" -Destination "$PACKAGE_DIR/"
         
         # Deploy Qt dependencies (use host tools for ARM64 cross-compile)
         $windeployqt = if ($env:QT_HOST_PATH) { "$env:QT_HOST_PATH/bin/windeployqt.exe" } else { "$env:QT_ROOT_DIR/bin/windeployqt.exe" }
@@ -351,7 +351,7 @@ jobs:
               libfontconfig1-dev libfreetype6-dev \
               libdbus-1-dev libssl-dev \
               curl zip unzip tar wget git ca-certificates \
-              qt6-base-dev qt6-base-dev-tools
+              qt6-base-dev qt6-base-dev-tools qt6-declarative-dev
             
             echo "==== Setting up vcpkg ===="
             git config --global --add safe.directory /workspace/vcpkg
