@@ -61,6 +61,22 @@
       }
     },
     {
+      "name": "windows-arm64-release",
+      "displayName": "Windows ARM64 Release (Ninja)",
+      "description": "Windows ARM64 Release build with MSVC cross tools and vcpkg",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-arm64-release",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "VCPKG_BUILD_TYPE": "release",
+        "VCPKG_TARGET_TRIPLET": "arm64-windows",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "BUILD_TESTS": "ON"
+      }
+    },
+    {
       "name": "linux-base",
       "hidden": true,
       "inherits": "base",
@@ -103,6 +119,12 @@
       "configuration": "Release",
       "displayName": "Build Windows Release",
       "description": "Build Windows Release configuration"
+    },
+    {
+      "name": "windows-arm64-release",
+      "configurePreset": "windows-arm64-release",
+      "displayName": "Build Windows ARM64 Release",
+      "description": "Build Windows ARM64 Release configuration"
     },
     {
       "name": "linux-amd64-release",
