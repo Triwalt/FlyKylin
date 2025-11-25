@@ -49,6 +49,11 @@ set(QCORO_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(QCORO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 # Disable QCoro WebSockets to avoid dependency on Qt6WebSockets
 set(QCORO_WITH_QTWEBSOCKETS OFF CACHE BOOL "" FORCE)
+# We only use QCoro Core/Network; disable QML/Quick support to avoid
+# depending on Qt private Qml/Quick headers, which are not available
+# in the Ubuntu 24.04 ARM64 system Qt packages.
+set(QCORO_WITH_QML OFF CACHE BOOL "" FORCE)
+set(QCORO_WITH_QTQUICK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(qcoro)
 
 target_link_libraries(FlyKylin PRIVATE

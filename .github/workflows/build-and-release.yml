@@ -351,7 +351,7 @@ jobs:
               libfontconfig1-dev libfreetype6-dev \
               libdbus-1-dev libssl-dev \
               curl zip unzip tar wget git ca-certificates \
-              qt6-base-dev qt6-base-dev-tools qt6-declarative-dev
+              qt6-base-dev qt6-base-dev-tools qt6-declarative-dev qt6-declarative-private-dev
             
             echo "==== Setting up vcpkg ===="
             git config --global --add safe.directory /workspace/vcpkg
