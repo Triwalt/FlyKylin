@@ -15,6 +15,12 @@
     },
     {
       "name": "gtest"
+    },
+    {
+      "name": "qtbase"
+    },
+    {
+      "name": "qtdeclarative"
     }
   ],
   "features": {

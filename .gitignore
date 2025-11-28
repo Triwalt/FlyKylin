@@ -12,6 +12,7 @@
 
 # CMake
 build/
+build-wsl/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
