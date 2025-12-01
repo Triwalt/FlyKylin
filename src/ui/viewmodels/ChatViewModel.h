@@ -77,9 +77,21 @@ public:
     Q_INVOKABLE void sendMessage(const QString& content);
     Q_INVOKABLE void sendImage(const QString& filePath);
     Q_INVOKABLE void sendFile(const QString& filePath);
+    Q_INVOKABLE void sendScreenshot();
+    Q_INVOKABLE QString captureScreenForSelection();
+    Q_INVOKABLE void sendCroppedScreenshot(const QString& fullPath,
+                                           int x,
+                                           int y,
+                                           int width,
+                                           int height);
+    Q_INVOKABLE void deleteConversation(const QString& peerId);
+
+    Q_INVOKABLE int findMessageRow(const QString& messageId) const;
 
     Q_INVOKABLE bool isGroupChat() const { return m_isGroupChat; }
     Q_INVOKABLE QString getCurrentGroupId() const { return m_currentGroupId; }
+
+    Q_INVOKABLE bool isImageNsfw(const QString& filePath) const;
 
     Q_INVOKABLE void resetConversation();
     

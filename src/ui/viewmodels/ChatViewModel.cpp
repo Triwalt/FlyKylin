@@ -9,9 +9,19 @@
 #include "../../core/models/Message.h"
 #include "../../core/services/MessageService.h"
 #include "../../core/config/UserProfile.h"
+#include "../../core/database/DatabaseService.h"
+#include "../../core/ai/NSFWDetector.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QUrl>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QStandardPaths>
+#include <QDir>
+#include <QPixmap>
+#include <QImage>
+#include <QFile>
+#include <QSettings>
 
 namespace flykylin {
 namespace ui {
@@ -31,6 +41,8 @@ ChatViewModel::ChatViewModel(QObject* parent)
     roles[Qt::UserRole + 5] = "kind";
     roles[Qt::UserRole + 6] = "attachmentPath";
     roles[Qt::UserRole + 7] = "attachmentName";
+    roles[Qt::UserRole + 8] = "messageId";
+    roles[Qt::UserRole + 9] = "nsfwPassed";
     m_messageModel->setItemRoleNames(roles);
 
     // Connect MessageService signals
@@ -48,14 +60,31 @@ void ChatViewModel::rebuildMessageModel() {
     m_messageModel->clear();
     
     QString localUserId = core::UserProfile::instance().userId();
+    QString localUserName = core::UserProfile::instance().userName();
+    if (localUserName.isEmpty()) {
+        localUserName = localUserId;
+    }
+    auto* db = flykylin::database::DatabaseService::instance();
+    flykylin::database::DatabaseService::PeerInfo peerInfo;
     
     for (const auto& msg : m_messages) {
         auto* item = new QStandardItem();
         item->setData(msg.content(), Qt::UserRole);
-        item->setData(msg.fromUserId() == localUserId, Qt::UserRole + 1);
+        const bool isMine = (msg.fromUserId() == localUserId);
+        item->setData(isMine, Qt::UserRole + 1);
         item->setData(msg.timestamp().toString("HH:mm:ss"), Qt::UserRole + 2);
         item->setData(QVariant::fromValue(msg.status()), Qt::UserRole + 3);
-        item->setData(msg.fromUserId(), Qt::UserRole + 4); // Simplified sender name
+        QString senderName;
+        if (isMine) {
+            senderName = localUserName;
+        } else if (!m_isGroupChat && !m_currentPeerName.isEmpty()) {
+            senderName = m_currentPeerName;
+        } else if (db && db->loadPeer(msg.fromUserId(), peerInfo) && !peerInfo.userName.isEmpty()) {
+            senderName = peerInfo.userName;
+        } else {
+            senderName = msg.fromUserId();
+        }
+        item->setData(senderName, Qt::UserRole + 4);
 
         QString kindStr = QStringLiteral("text");
         switch (msg.kind()) {
@@ -72,6 +101,8 @@ void ChatViewModel::rebuildMessageModel() {
         item->setData(kindStr, Qt::UserRole + 5);
         item->setData(msg.attachmentLocalPath(), Qt::UserRole + 6);
         item->setData(msg.attachmentName(), Qt::UserRole + 7);
+        item->setData(msg.id(), Qt::UserRole + 8);
+        item->setData(msg.nsfwPassed(), Qt::UserRole + 9);
         m_messageModel->appendRow(item);
     }
 }
@@ -81,21 +112,23 @@ ChatViewModel::~ChatViewModel() {
 }
 
 void ChatViewModel::setCurrentPeer(const QString& peerId, const QString& peerName) {
-    if (m_currentPeerId == peerId) {
-        return;  // Already chatting with this peer
-    }
-    
+    const bool samePeer = (m_currentPeerId == peerId);
+
     qInfo() << "[ChatViewModel] Switching to peer" << peerId << "(" << peerName << ")";
-    
+
     m_isGroupChat = false;
     m_currentGroupId.clear();
     m_groupMembers.clear();
     m_currentPeerId = peerId;
     m_currentPeerName = peerName;
-    
-    // Load message history for this peer
-    loadMessagesFromService();
-    
+
+    if (!samePeer) {
+        loadMessagesFromService();
+    } else {
+        rebuildMessageModel();
+        emit messagesUpdated();
+    }
+
     emit peerChanged(peerId, peerName);
 }
 
@@ -236,6 +269,216 @@ void ChatViewModel::sendFile(const QString& filePath) {
         for (const auto& memberId : m_groupMembers) {
             m_messageService->sendFileMessage(memberId, normalizedPath);
         }
+    }
+}
+
+void ChatViewModel::sendScreenshot() {
+    if (!m_isGroupChat && m_currentPeerId.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send screenshot: no peer selected";
+        return;
+    }
+
+    if (m_isGroupChat && m_groupMembers.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send screenshot: group has no members";
+        return;
+    }
+
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (!screen) {
+        qWarning() << "[ChatViewModel] Cannot send screenshot: no primary screen";
+        return;
+    }
+
+    QPixmap pixmap = screen->grabWindow(0);
+    if (pixmap.isNull()) {
+        qWarning() << "[ChatViewModel] Cannot send screenshot: grabWindow returned null";
+        return;
+    }
+
+    QString baseDir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (baseDir.isEmpty()) {
+        baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    }
+
+    if (baseDir.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send screenshot: no writable location";
+        return;
+    }
+
+    QDir dir(baseDir);
+    if (!dir.exists("FlyKylin")) {
+        if (!dir.mkpath("FlyKylin")) {
+            qWarning() << "[ChatViewModel] Cannot send screenshot: failed to create directory"
+                       << dir.absolutePath();
+            return;
+        }
+        dir.cd("FlyKylin");
+    } else {
+        dir.cd("FlyKylin");
+    }
+
+    const QString fileName =
+        QStringLiteral("screenshot_%1.png")
+            .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    const QString filePath = dir.filePath(fileName);
+
+    if (!pixmap.save(filePath, "PNG")) {
+        qWarning() << "[ChatViewModel] Cannot send screenshot: failed to save to" << filePath;
+        return;
+    }
+
+    sendImage(filePath);
+}
+
+QString ChatViewModel::captureScreenForSelection() {
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (!screen) {
+        qWarning() << "[ChatViewModel] Cannot capture screen: no primary screen";
+        return QString();
+    }
+
+    QPixmap pixmap = screen->grabWindow(0);
+    if (pixmap.isNull()) {
+        qWarning() << "[ChatViewModel] Cannot capture screen: grabWindow returned null";
+        return QString();
+    }
+
+    QString baseDir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (baseDir.isEmpty()) {
+        baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    }
+
+    if (baseDir.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot capture screen: no writable location";
+        return QString();
+    }
+
+    QDir dir(baseDir);
+    if (!dir.exists("FlyKylin")) {
+        if (!dir.mkpath("FlyKylin")) {
+            qWarning() << "[ChatViewModel] Cannot capture screen: failed to create directory"
+                       << dir.absolutePath();
+            return QString();
+        }
+    }
+
+    if (!dir.cd("FlyKylin")) {
+        qWarning() << "[ChatViewModel] Cannot capture screen: failed to enter directory"
+                   << dir.absolutePath();
+        return QString();
+    }
+
+    const QString fileName =
+        QStringLiteral("screenshot_full_%1.png")
+            .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    const QString filePath = dir.filePath(fileName);
+
+    if (!pixmap.save(filePath, "PNG")) {
+        qWarning() << "[ChatViewModel] Cannot capture screen: failed to save to" << filePath;
+        return QString();
+    }
+
+    qInfo() << "[ChatViewModel] Captured full screen to" << filePath;
+    return filePath;
+}
+
+void ChatViewModel::sendCroppedScreenshot(const QString& fullPath,
+                                          int x,
+                                          int y,
+                                          int width,
+                                          int height) {
+    if (!m_isGroupChat && m_currentPeerId.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: no peer selected";
+        return;
+    }
+
+    if (m_isGroupChat && m_groupMembers.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: group has no members";
+        return;
+    }
+
+    if (fullPath.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: empty path";
+        return;
+    }
+
+    if (width <= 0 || height <= 0) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: invalid size" << width
+                   << height;
+        return;
+    }
+
+    QImage image(fullPath);
+    if (image.isNull()) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: failed to load"
+                   << fullPath;
+        return;
+    }
+
+    QRect cropRect(x, y, width, height);
+    cropRect = cropRect.intersected(image.rect());
+    if (!cropRect.isValid() || cropRect.width() <= 0 || cropRect.height() <= 0) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: crop rect invalid"
+                   << cropRect;
+        return;
+    }
+
+    QImage cropped = image.copy(cropRect);
+
+    QString baseDir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (baseDir.isEmpty()) {
+        baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    }
+
+    if (baseDir.isEmpty()) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: no writable location";
+        return;
+    }
+
+    QDir dir(baseDir);
+    if (!dir.exists("FlyKylin")) {
+        if (!dir.mkpath("FlyKylin")) {
+            qWarning() << "[ChatViewModel] Cannot send cropped screenshot: failed to create"
+                       << dir.absolutePath();
+            return;
+        }
+    }
+
+    if (!dir.cd("FlyKylin")) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: failed to enter directory"
+                   << dir.absolutePath();
+        return;
+    }
+
+    const QString fileName =
+        QStringLiteral("screenshot_%1.png")
+            .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    const QString filePath = dir.filePath(fileName);
+
+    if (!cropped.save(filePath, "PNG")) {
+        qWarning() << "[ChatViewModel] Cannot send cropped screenshot: failed to save to"
+                   << filePath;
+        return;
+    }
+
+    // Cleanup temporary full-screen capture; ignore errors
+    QFile::remove(fullPath);
+
+    qInfo() << "[ChatViewModel] Sending cropped screenshot from" << filePath;
+    sendImage(filePath);
+}
+
+void ChatViewModel::deleteConversation(const QString& peerId) {
+    if (peerId.isEmpty()) {
+        return;
+    }
+
+    qInfo() << "[ChatViewModel] Deleting conversation for" << peerId;
+
+    m_messageService->clearHistory(peerId);
+
+    if (!m_isGroupChat && m_currentPeerId == peerId) {
+        resetConversation();
     }
 }
 
@@ -432,6 +675,56 @@ void ChatViewModel::resetConversation() {
     rebuildMessageModel();
     emit messagesUpdated();
     emit peerChanged(QString(), QString());
+}
+
+int ChatViewModel::findMessageRow(const QString& messageId) const {
+    if (messageId.isEmpty()) {
+        return -1;
+    }
+
+    for (int i = 0; i < m_messages.size(); ++i) {
+        if (m_messages.at(i).id() == messageId) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+bool ChatViewModel::isImageNsfw(const QString& filePath) const
+{
+    QString normalizedPath = filePath;
+    if (filePath.startsWith("file:")) {
+        const QUrl url(filePath);
+        const QString local = url.toLocalFile();
+        if (!local.isEmpty()) {
+            normalizedPath = local;
+        }
+    }
+
+    ai::NSFWDetector* detector = ai::NSFWDetector::instance();
+    if (!detector || !detector->isAvailable()) {
+        qInfo() << "[ChatViewModel] NSFWDetector not available, skipping check for" << normalizedPath;
+        return false;
+    }
+
+    const auto prob = detector->predictNsfwProbability(normalizedPath);
+    if (!prob.has_value()) {
+        qWarning() << "[ChatViewModel] NSFW detection failed for emoji" << normalizedPath;
+        return false;
+    }
+
+    QSettings settings("FlyKylin", "FlyKylin");
+    double threshold = settings.value("nsfw/threshold", 0.8).toDouble();
+    if (threshold < 0.0) {
+        threshold = 0.0;
+    } else if (threshold > 1.0) {
+        threshold = 1.0;
+    }
+
+    qInfo() << "[ChatViewModel] NSFW probability for emoji" << normalizedPath << "=" << *prob
+            << "threshold=" << threshold;
+    return *prob >= static_cast<float>(threshold);
 }
 
 } // namespace ui

@@ -86,6 +86,8 @@ public:
     QString attachmentName() const { return m_attachmentName; }
     quint64 attachmentSize() const { return m_attachmentSize; }
     QString mimeType() const { return m_mimeType; }
+    bool nsfwChecked() const { return m_nsfwChecked; }
+    bool nsfwPassed() const { return m_nsfwPassed; }
 
     // Setters
     void setId(const QString& id) { m_id = id; }
@@ -100,6 +102,8 @@ public:
     void setAttachmentName(const QString& name) { m_attachmentName = name; }
     void setAttachmentSize(quint64 size) { m_attachmentSize = size; }
     void setMimeType(const QString& mimeType) { m_mimeType = mimeType; }
+    void setNsfwChecked(bool checked) { m_nsfwChecked = checked; }
+    void setNsfwPassed(bool passed) { m_nsfwPassed = passed; }
 
     /**
      * @brief 生成唯一消息ID
@@ -124,6 +128,8 @@ private:
     QString m_attachmentName;
     quint64 m_attachmentSize{0};
     QString m_mimeType;
+    bool m_nsfwChecked{false};
+    bool m_nsfwPassed{false};
 };
 
 } // namespace core

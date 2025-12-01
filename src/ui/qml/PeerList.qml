@@ -13,6 +13,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import "."
 
 Item {
@@ -24,9 +25,36 @@ Item {
     property string titleText: qsTr("在线用户")
     // 是否使用包含离线用户的会话模型
     property bool useSessionModel: false
+    // 待删除会话的用户信息
+    property string pendingDeleteUserId: ""
+    property string pendingDeleteUserName: ""
 
     AvatarLibrary {
         id: avatarLib
+    }
+
+    MessageDialog {
+        id: deleteSessionDialog
+        title: qsTr("删除会话")
+        text: qsTr("确定要删除与 %1 的会话并清空聊天记录吗？").arg(peerList.pendingDeleteUserName)
+        buttons: MessageDialog.Ok | MessageDialog.Cancel
+
+        onAccepted: {
+            if (viewModel && peerList.pendingDeleteUserId !== "") {
+                viewModel.deleteSession(peerList.pendingDeleteUserId)
+            }
+            if (typeof chatViewModel !== "undefined" && chatViewModel
+                    && peerList.pendingDeleteUserId !== "") {
+                chatViewModel.deleteConversation(peerList.pendingDeleteUserId)
+            }
+            peerList.pendingDeleteUserId = ""
+            peerList.pendingDeleteUserName = ""
+        }
+
+        onRejected: {
+            peerList.pendingDeleteUserId = ""
+            peerList.pendingDeleteUserName = ""
+        }
     }
 
     ColumnLayout {
@@ -210,6 +238,18 @@ Item {
                             if (viewModel) {
                                 viewModel.requestAddToGroup(model.userId)
                             }
+                        }
+                    }
+                    MenuSeparator {
+                        visible: peerList.useSessionModel
+                    }
+                    MenuItem {
+                        text: qsTr("删除会话")
+                        visible: peerList.useSessionModel
+                        onTriggered: {
+                            peerList.pendingDeleteUserId = model.userId
+                            peerList.pendingDeleteUserName = model.userName || model.userId
+                            deleteSessionDialog.open()
                         }
                     }
                 }

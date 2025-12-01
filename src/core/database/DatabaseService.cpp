@@ -136,6 +136,19 @@ bool DatabaseService::init() {
         qWarning() << "[DatabaseService] Failed to create idx_sessions_ts:" << query.lastError().text();
     }
 
+    if (!query.exec(
+            "CREATE TABLE IF NOT EXISTS peers ("
+            "user_id TEXT PRIMARY KEY,"
+            "user_name TEXT,"
+            "host_name TEXT,"
+            "ip_address TEXT,"
+            "tcp_port INTEGER,"
+            "last_seen INTEGER"
+            ")")) {
+        qCritical() << "[DatabaseService] Failed to create peers table:" << query.lastError().text();
+        return false;
+    }
+
     qInfo() << "[DatabaseService] Initialized chat history database at" << m_dbPath;
 
     return true;
@@ -198,6 +211,90 @@ QList<core::Message> DatabaseService::loadMessages(const QString& localUserId, c
     }
 
     qInfo() << "[DatabaseService] Loaded" << result.size() << "messages for" << localUserId << peerId;
+
+    return result;
+}
+
+QList<core::Message> DatabaseService::searchMessagesByKeyword(const QString& localUserId,
+                                                              const QString& keyword,
+                                                              const QString& peerId,
+                                                              int limit) const {
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    const QString trimmed = keyword.trimmed();
+    if (trimmed.isEmpty()) {
+        return result;
+    }
+
+    QSqlQuery query(m_db);
+
+    QString sql =
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id AND content LIKE :pattern ";
+
+    if (!peerId.isEmpty()) {
+        sql += "AND peer_id = :peer_id ";
+    }
+
+    sql += "ORDER BY timestamp DESC, rowid DESC LIMIT :limit";
+
+    query.prepare(sql);
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":pattern", QString("%%1%").arg(trimmed));
+    if (!peerId.isEmpty()) {
+        query.bindValue(":peer_id", peerId);
+    }
+    const int effectiveLimit = (limit > 0) ? limit : 200;
+    query.bindValue(":limit", effectiveLimit);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to search messages for" << localUserId
+                   << "keyword=" << trimmed << "peer=" << peerId
+                   << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        result.append(message);
+    }
+
+    qInfo() << "[DatabaseService] Keyword search returned" << result.size() << "messages for"
+            << localUserId << "peer=" << peerId << "keyword=" << trimmed;
 
     return result;
 }
@@ -311,6 +408,78 @@ void DatabaseService::clearHistory(const QString& localUserId, const QString& pe
         qWarning() << "[DatabaseService] Failed to clear history for" << localUserId << peerId
                    << ":" << query.lastError().text();
     }
+
+    // Also remove the session entry so that the conversation disappears from the session list
+    QSqlQuery sessionsQuery(m_db);
+    sessionsQuery.prepare(
+        "DELETE FROM sessions "
+        "WHERE local_user_id = :local_user_id AND peer_id = :peer_id");
+    sessionsQuery.bindValue(":local_user_id", localUserId);
+    sessionsQuery.bindValue(":peer_id", peerId);
+
+    if (!sessionsQuery.exec()) {
+        qWarning() << "[DatabaseService] Failed to clear session for" << localUserId << peerId
+                   << ":" << sessionsQuery.lastError().text();
+    }
+}
+
+void DatabaseService::upsertPeer(const PeerInfo& info) {
+    if (!ensureInitialized()) {
+        return;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "INSERT OR REPLACE INTO peers (user_id, user_name, host_name, ip_address, tcp_port, last_seen) "
+        "VALUES (:user_id, :user_name, :host_name, :ip_address, :tcp_port, :last_seen)");
+
+    query.bindValue(":user_id", info.userId);
+    query.bindValue(":user_name", info.userName);
+    query.bindValue(":host_name", info.hostName);
+    query.bindValue(":ip_address", info.ipAddress);
+    query.bindValue(":tcp_port", static_cast<int>(info.tcpPort));
+
+    qint64 ts = info.lastSeen;
+    if (ts <= 0) {
+        ts = QDateTime::currentMSecsSinceEpoch();
+    }
+    query.bindValue(":last_seen", ts);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to upsert peer" << info.userId
+                   << ":" << query.lastError().text();
+    }
+}
+
+bool DatabaseService::loadPeer(const QString& userId, PeerInfo& outInfo) const {
+    if (!ensureInitialized()) {
+        return false;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT user_id, user_name, host_name, ip_address, tcp_port, last_seen "
+        "FROM peers WHERE user_id = :user_id");
+    query.bindValue(":user_id", userId);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load peer" << userId
+                   << ":" << query.lastError().text();
+        return false;
+    }
+
+    if (!query.next()) {
+        return false;
+    }
+
+    outInfo.userId = query.value(0).toString();
+    outInfo.userName = query.value(1).toString();
+    outInfo.hostName = query.value(2).toString();
+    outInfo.ipAddress = query.value(3).toString();
+    outInfo.tcpPort = static_cast<quint16>(query.value(4).toInt());
+    outInfo.lastSeen = query.value(5).toLongLong();
+
+    return true;
 }
 
 } // namespace database

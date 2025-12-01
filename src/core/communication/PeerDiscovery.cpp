@@ -7,6 +7,7 @@
 #include "NetworkInterfaceCache.h"
 #include "../adapters/ProtobufSerializer.h"
 #include "../config/UserProfile.h"
+#include "../database/DatabaseService.h"
 #include <QHostAddress>
 #include <QHostInfo>
 #include <QNetworkDatagram>
@@ -266,6 +267,15 @@ void PeerDiscovery::processReceivedMessage(const QByteArray& datagram,
     QDateTime now = QDateTime::currentDateTime();
     m_lastSeen[userId] = now;
     node.setLastSeen(now);
+
+    flykylin::database::DatabaseService::PeerInfo info;
+    info.userId = userId;
+    info.userName = node.userName();
+    info.hostName = node.hostName();
+    info.ipAddress = node.ipAddress().toString();
+    info.tcpPort = node.tcpPort();
+    info.lastSeen = now.toMSecsSinceEpoch();
+    flykylin::database::DatabaseService::instance()->upsertPeer(info);
 
     // 判断消息类型（通过是否在线状态推断）
     if (!node.isOnline()) {

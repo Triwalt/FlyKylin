@@ -8,6 +8,7 @@ set(SOURCES
     ui/viewmodels/PeerListViewModel.cpp
     ui/viewmodels/ChatViewModel.cpp
     ui/viewmodels/SettingsViewModel.cpp
+    ui/viewmodels/GlobalSearchViewModel.cpp
     ui/widgets/PeerListWidget.cpp
     ui/windows/MainWindow.cpp
     ui/windows/ChatWindow.cpp
@@ -32,6 +33,7 @@ target_link_libraries(FlyKylin PRIVATE
     Qt6::Concurrent
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
     flykylin_core
     flykylin_protocol
 )
@@ -65,6 +67,7 @@ target_link_libraries(FlyKylin PRIVATE
     Qt6::Concurrent
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
     flykylin_core
     QCoro6::Core
     QCoro6::Network
@@ -93,6 +96,50 @@ if(WIN32)
             "$<TARGET_FILE:FlyKylin>"
         COMMENT "Deploying Qt libraries and QML modules for FlyKylin..."
     )
+
+    if(EXISTS "${CMAKE_SOURCE_DIR}/model/onnx/bge-small-zh-v1.5.onnx")
+        add_custom_command(TARGET FlyKylin POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:FlyKylin>/models"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/model/onnx/bge-small-zh-v1.5.onnx"
+                "$<TARGET_FILE_DIR:FlyKylin>/models/text-embedding.onnx"
+            COMMENT "Copying BGE text embedding model for FlyKylin..."
+        )
+    endif()
+
+    if(EXISTS "${CMAKE_SOURCE_DIR}/model/onnx/text-embedding-vocab.txt")
+        add_custom_command(TARGET FlyKylin POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:FlyKylin>/models"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/model/onnx/text-embedding-vocab.txt"
+                "$<TARGET_FILE_DIR:FlyKylin>/models/text-embedding-vocab.txt"
+            COMMENT "Copying BGE text embedding vocab for FlyKylin..."
+        )
+    endif()
+
+    if(EXISTS "${CMAKE_SOURCE_DIR}/model/onnx/open_nsfw.onnx")
+        add_custom_command(TARGET FlyKylin POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:FlyKylin>/models"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/model/onnx/open_nsfw.onnx"
+                "$<TARGET_FILE_DIR:FlyKylin>/models/open_nsfw.onnx"
+            COMMENT "Copying Open NSFW model for FlyKylin..."
+        )
+    endif()
+
+    if(ONNXRUNTIME_FOUND)
+        if(EXISTS "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll")
+            add_custom_command(TARGET FlyKylin POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+                    "$<TARGET_FILE_DIR:FlyKylin>"
+                COMMENT "Copying ONNX Runtime DLL for FlyKylin..."
+            )
+        endif()
+    endif()
 
     # 复制 Protobuf 运行时 DLL（不依赖 vcpkg 变量，直接使用 imported target）
     if(TARGET protobuf::libprotobuf)

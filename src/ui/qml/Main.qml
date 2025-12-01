@@ -7,7 +7,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Qt.labs.settings
+import QtCore
 import "."
 
 ApplicationWindow {
@@ -873,6 +873,7 @@ ApplicationWindow {
             ChatView {
                 anchors.fill: parent
                 viewModel: chatViewModel
+                hostWindow: mainWindow
             }
         }
     }
