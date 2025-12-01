@@ -66,6 +66,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Test
     Qml
     Quick
+    QuickControls2
 )
 
 # Protobuf + Abseil + utf8_range are provided by vcpkg; prefer the vcpkg package configs
@@ -83,15 +84,15 @@ find_package(utf8_range CONFIG REQUIRED)
 # 注意：Python环境中有onnxruntime 1.23.2，C++ API需要单独下载
 # 从 https://github.com/microsoft/onnxruntime/releases 下载预编译库
 set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime" CACHE PATH "ONNX Runtime root directory")
-if(EXISTS "${ONNXRUNTIME_ROOT}/include")
+if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h" AND EXISTS "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
     message(STATUS "Found ONNX Runtime: ${ONNXRUNTIME_ROOT}")
     set(ONNXRUNTIME_FOUND TRUE)
     # 添加库路径
     link_directories(${ONNXRUNTIME_ROOT}/lib)
 else()
-    message(WARNING "ONNX Runtime C++ library not found in ${ONNXRUNTIME_ROOT}")
+    message(WARNING "ONNX Runtime C++ headers or libs not found in ${ONNXRUNTIME_ROOT}")
     message(WARNING "Please download from: https://github.com/microsoft/onnxruntime/releases")
-    message(WARNING "Extract to: ${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime")
+    message(WARNING "Extract to: ${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime (with include/ and lib/)")
     set(ONNXRUNTIME_FOUND FALSE)
 endif()
 

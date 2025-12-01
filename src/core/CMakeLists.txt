@@ -44,6 +44,14 @@ set(CORE_SOURCES
     services/LocalEchoService.h
     services/FileTransferService.cpp
     services/FileTransferService.h
+    services/ChatSearchService.cpp
+    services/ChatSearchService.h
+
+    # AI模块
+    ai/TextEmbeddingEngine.cpp
+    ai/TextEmbeddingEngine.h
+    ai/NSFWDetector.cpp
+    ai/NSFWDetector.h
 )
 
 # 暂时禁用Protobuf（等待安装）
@@ -61,8 +69,20 @@ target_link_libraries(flykylin_core PUBLIC
     Qt6::Core
     Qt6::Network
     Qt6::Sql
+    Qt6::Gui
     flykylin_protocol
 )
+
+option(FLYKYLIN_ENABLE_ONNXRUNTIME "Enable ONNX Runtime based semantic search" ON)
+
+if(FLYKYLIN_ENABLE_ONNXRUNTIME AND ONNXRUNTIME_FOUND)
+    if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
+        target_compile_definitions(flykylin_core PRIVATE FLYKYLIN_ENABLE_ONNXRUNTIME=1)
+        target_include_directories(flykylin_core PRIVATE "${ONNXRUNTIME_ROOT}/include")
+        # 链接库名称由顶层 CMake 的 link_directories(${ONNXRUNTIME_ROOT}/lib) 提供搜索路径
+        target_link_libraries(flykylin_core PRIVATE onnxruntime)
+    endif()
+endif()
 
 # Protobuf链接（等待安装）
 # if(Protobuf_FOUND)

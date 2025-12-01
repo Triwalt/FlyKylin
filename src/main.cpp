@@ -7,11 +7,13 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QCommandLineParser>
+#include <QtQuickControls2/QQuickStyle>
 #include <memory>
 #include "ui/windows/MainWindow.h"
 #include "ui/viewmodels/PeerListViewModel.h"
 #include "ui/viewmodels/ChatViewModel.h"
 #include "ui/viewmodels/SettingsViewModel.h"
+#include "ui/viewmodels/GlobalSearchViewModel.h"
 #include "core/communication/PeerDiscovery.h"
 #include "core/communication/TcpServer.h"
 #include "core/communication/TcpConnectionManager.h"
@@ -30,6 +32,7 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationDomain("flykylin.local");
     QCoreApplication::setApplicationName("FlyKylin");
     QApplication app(argc, argv);
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     // Command line options
     QCommandLineParser parser;
@@ -81,6 +84,7 @@ int main(int argc, char *argv[]) {
     flykylin::ui::PeerListViewModel peerListViewModel;
     flykylin::ui::ChatViewModel chatViewModel;
     flykylin::ui::SettingsViewModel settingsViewModel;
+    flykylin::ui::GlobalSearchViewModel globalSearchViewModel;
 
     // 在启动时加载历史会话，让“会话”页能显示离线用户的历史对话
     peerListViewModel.loadHistoricalSessions();
@@ -103,6 +107,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("peerListViewModel", &peerListViewModel);
     engine.rootContext()->setContextProperty("chatViewModel", &chatViewModel);
     engine.rootContext()->setContextProperty("settingsViewModel", &settingsViewModel);
+    engine.rootContext()->setContextProperty("globalSearchViewModel", &globalSearchViewModel);
 
     const QUrl url(u"qrc:/FlyKylin/src/ui/qml/Main.qml"_qs);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

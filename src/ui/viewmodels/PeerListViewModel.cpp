@@ -80,6 +80,8 @@ void PeerListViewModel::loadHistoricalSessions()
     qDebug() << "[PeerListViewModel] Loading historical sessions for" << localUserId
              << "count=" << sessions.size();
 
+    flykylin::database::DatabaseService::PeerInfo peerInfo;
+
     for (const auto& entry : sessions) {
         const QString& peerId = entry.first;
         const qint64 lastTs = entry.second;
@@ -90,18 +92,65 @@ void PeerListViewModel::loadHistoricalSessions()
 
         flykylin::core::PeerNode node;
         node.setUserId(peerId);
-        node.setUserName(peerId); // 缺省情况下使用ID作为名称
-        node.setHostName(QString());
-        node.setIpAddress(QString());
-        node.setTcpPort(0);
+
+        bool hasInfo = db->loadPeer(peerId, peerInfo);
+        if (hasInfo) {
+            QString name = peerInfo.userName.isEmpty() ? peerId : peerInfo.userName;
+            node.setUserName(name);
+            if (!peerInfo.hostName.isEmpty()) {
+                node.setHostName(peerInfo.hostName);
+            }
+            if (!peerInfo.ipAddress.isEmpty()) {
+                node.setIpAddress(peerInfo.ipAddress);
+            }
+            if (peerInfo.tcpPort > 0) {
+                node.setTcpPort(peerInfo.tcpPort);
+            }
+            if (peerInfo.lastSeen > 0) {
+                node.setLastSeen(QDateTime::fromMSecsSinceEpoch(peerInfo.lastSeen));
+            } else {
+                node.setLastSeen(QDateTime::fromMSecsSinceEpoch(lastTs));
+            }
+        } else {
+            node.setUserName(peerId); // 缺省情况下使用ID作为名称
+            node.setHostName(QString());
+            node.setIpAddress(QString());
+            node.setTcpPort(0);
+            node.setLastSeen(QDateTime::fromMSecsSinceEpoch(lastTs));
+        }
+
         node.setOnline(false);
-        node.setLastSeen(QDateTime::fromMSecsSinceEpoch(lastTs));
 
         m_peers.insert(peerId, node);
     }
 
     updateModel();
     emit sessionCountChanged();
+}
+
+void PeerListViewModel::deleteSession(const QString& userId)
+{
+    if (userId.isEmpty()) {
+        return;
+    }
+
+    auto it = m_peers.find(userId);
+    if (it == m_peers.end()) {
+        qWarning() << "[PeerListViewModel] deleteSession: peer not found" << userId;
+        return;
+    }
+
+    m_peers.erase(it);
+
+    updateModel();
+    emit onlineCountChanged();
+    ++m_onlineVersion;
+    emit onlineVersionChanged();
+
+    if (m_currentPeerId == userId) {
+        m_currentPeerId.clear();
+        emit currentPeerIdChanged();
+    }
 }
 
 void PeerListViewModel::selectPeer(const QString& userId)

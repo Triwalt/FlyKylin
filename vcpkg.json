@@ -17,10 +17,12 @@
       "name": "gtest"
     },
     {
-      "name": "qtbase"
+      "name": "qtbase",
+      "platform": "!windows"
     },
     {
-      "name": "qtdeclarative"
+      "name": "qtdeclarative",
+      "platform": "!windows"
     }
   ],
   "features": {

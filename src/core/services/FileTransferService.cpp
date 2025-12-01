@@ -1,6 +1,7 @@
 #include "FileTransferService.h"
 
 #include "../config/UserProfile.h"
+#include "../ai/NSFWDetector.h"
 #include <QByteArray>
 #include <QDateTime>
 #include <QDebug>
@@ -15,6 +16,30 @@
 namespace {
 constexpr quint64 kMaxFileSizeBytes = 200ull * 1024ull * 1024ull;
 constexpr qint64 kChunkSizeBytes = 1024 * 1024; // 1MB
+
+bool nsfwBlockOutgoing()
+{
+    QSettings settings("FlyKylin", "FlyKylin");
+    return settings.value("nsfw/blockOutgoing", false).toBool();
+}
+
+bool nsfwBlockIncoming()
+{
+    QSettings settings("FlyKylin", "FlyKylin");
+    return settings.value("nsfw/blockIncoming", false).toBool();
+}
+
+double nsfwThreshold()
+{
+    QSettings settings("FlyKylin", "FlyKylin");
+    double value = settings.value("nsfw/threshold", 0.8).toDouble();
+    if (value < 0.0) {
+        value = 0.0;
+    } else if (value > 1.0) {
+        value = 1.0;
+    }
+    return value;
+}
 }
 
 namespace flykylin {
@@ -68,6 +93,57 @@ void FileTransferService::sendFileInternal(const QString& peerId, const QString&
     if (fileSize > kMaxFileSizeBytes) {
         emit transferFailed(QString(), QStringLiteral("File is too large (max 200MB)"));
         return;
+    }
+
+    float nsfwProb = 0.0f;
+    bool nsfwProbValid = false;
+    bool nsfwChecked = false;
+    bool nsfwPassedFlag = false;
+
+    if (asImage) {
+        auto* detector = ai::NSFWDetector::instance();
+        if (detector && detector->isAvailable()) {
+            const auto prob = detector->predictNsfwProbability(filePath);
+            if (prob.has_value()) {
+                nsfwProb = *prob;
+                nsfwProbValid = true;
+                qInfo() << "[FileTransferService] NSFW probability for outgoing image" << filePath
+                        << "=" << nsfwProb;
+            } else {
+                qWarning() << "[FileTransferService] NSFW detection failed for outgoing image"
+                           << filePath;
+            }
+        }
+    }
+
+    if (asImage && nsfwProbValid && nsfwBlockOutgoing()) {
+        const double threshold = nsfwThreshold();
+        const bool blocked = nsfwProb >= static_cast<float>(threshold);
+
+        if (blocked) {
+            QString infoText =
+                QStringLiteral("[NSFW] 发送图片检测: 阻断 (p=%1, 阈值=%2)")
+                    .arg(static_cast<double>(nsfwProb), 0, 'f', 3)
+                    .arg(threshold, 0, 'f', 2);
+
+            core::Message infoMessage;
+            infoMessage.setId(core::Message::generateMessageId());
+            infoMessage.setFromUserId(m_localUserId);
+            infoMessage.setToUserId(peerId);
+            infoMessage.setTimestamp(QDateTime::currentDateTime());
+            infoMessage.setStatus(core::MessageStatus::Delivered);
+            infoMessage.setKind(core::MessageKind::Text);
+            infoMessage.setContent(infoText);
+
+            emit messageCreated(infoMessage);
+
+            emit transferFailed(QString(),
+                                QStringLiteral("NSFW policy blocked outgoing image"));
+            return;
+        } else {
+            nsfwChecked = true;
+            nsfwPassedFlag = true;
+        }
     }
 
     QString mimeType = detectMimeType(filePath, asImage);
@@ -172,6 +248,11 @@ void FileTransferService::sendFileInternal(const QString& peerId, const QString&
     message.setAttachmentSize(static_cast<quint64>(info.size()));
     message.setMimeType(mimeType);
     message.setContent(info.fileName());
+
+    if (asImage && nsfwChecked) {
+        message.setNsfwChecked(true);
+        message.setNsfwPassed(nsfwPassedFlag);
+    }
 
     emit messageCreated(message);
     emit transferCompleted(transferId, message);
@@ -339,7 +420,65 @@ void FileTransferService::handleIncomingTcpData(const QString& peerId, const QBy
             ctx.message.setStatus(core::MessageStatus::Delivered);
             ctx.message.setAttachmentSize(ctx.receivedBytes);
 
+            float nsfwProbIncoming = 0.0f;
+            bool nsfwProbIncomingValid = false;
+            bool nsfwCheckedIncoming = false;
+            bool nsfwPassedIncoming = false;
+
+            if (ctx.isImage) {
+                auto* detector = ai::NSFWDetector::instance();
+                if (detector && detector->isAvailable()) {
+                    const auto prob = detector->predictNsfwProbability(ctx.localFilePath);
+                    if (prob.has_value()) {
+                        nsfwProbIncoming = *prob;
+                        nsfwProbIncomingValid = true;
+                        qInfo() << "[FileTransferService] NSFW probability for received image"
+                                << ctx.localFilePath << "=" << nsfwProbIncoming;
+                    } else {
+                        qWarning() << "[FileTransferService] NSFW detection failed for received image"
+                                   << ctx.localFilePath;
+                    }
+                }
+            }
+
+            if (ctx.isImage && nsfwProbIncomingValid && nsfwBlockIncoming()) {
+                const double threshold = nsfwThreshold();
+                const bool blocked = nsfwProbIncoming >= static_cast<float>(threshold);
+
+                if (blocked) {
+                    QString infoText =
+                        QStringLiteral("[NSFW] 接收来自 %1 的图片检测: 阻断 (p=%2, 阈值=%3)")
+                            .arg(ctx.peerId)
+                            .arg(static_cast<double>(nsfwProbIncoming), 0, 'f', 3)
+                            .arg(threshold, 0, 'f', 2);
+
+                    core::Message infoMessage;
+                    infoMessage.setId(core::Message::generateMessageId());
+                    infoMessage.setFromUserId(m_localUserId);
+                    infoMessage.setToUserId(ctx.peerId);
+                    infoMessage.setTimestamp(QDateTime::currentDateTime());
+                    infoMessage.setStatus(core::MessageStatus::Delivered);
+                    infoMessage.setKind(core::MessageKind::Text);
+                    infoMessage.setContent(infoText);
+
+                    emit messageCreated(infoMessage);
+
+                    QFile::remove(ctx.localFilePath);
+                    m_incomingTransfers.remove(transferId);
+                    emit transferFailed(transferId,
+                                        QStringLiteral("NSFW policy blocked incoming image"));
+                    return;
+                } else {
+                    nsfwCheckedIncoming = true;
+                    nsfwPassedIncoming = true;
+                }
+            }
+
             core::Message completedMessage = ctx.message;
+            if (ctx.isImage && nsfwCheckedIncoming) {
+                completedMessage.setNsfwChecked(true);
+                completedMessage.setNsfwPassed(nsfwPassedIncoming);
+            }
             m_incomingTransfers.remove(transferId);
 
             emit messageCreated(completedMessage);

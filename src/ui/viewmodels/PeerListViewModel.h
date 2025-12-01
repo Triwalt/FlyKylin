@@ -93,6 +93,7 @@ public:
     Q_INVOKABLE void requestPeerDetails(const QString& userId);
     Q_INVOKABLE void requestAddToContacts(const QString& userId);
     Q_INVOKABLE void requestAddToGroup(const QString& userId);
+    Q_INVOKABLE void deleteSession(const QString& userId);
 
     /**
      * @brief 查询指定用户当前是否在线

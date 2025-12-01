@@ -42,7 +42,9 @@ bool Message::operator==(const Message& other) const
            m_attachmentLocalPath == other.m_attachmentLocalPath &&
            m_attachmentName == other.m_attachmentName &&
            m_attachmentSize == other.m_attachmentSize &&
-           m_mimeType == other.m_mimeType;
+           m_mimeType == other.m_mimeType &&
+           m_nsfwChecked == other.m_nsfwChecked &&
+           m_nsfwPassed == other.m_nsfwPassed;
 }
 
 bool Message::operator!=(const Message& other) const

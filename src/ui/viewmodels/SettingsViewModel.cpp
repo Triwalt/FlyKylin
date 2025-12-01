@@ -34,6 +34,15 @@ void SettingsViewModel::load()
     QSettings settings("FlyKylin", "FlyKylin");
     m_downloadDirectory = settings.value("paths/downloadDirectory").toString();
     m_chatHistoryDirectory = settings.value("paths/chatHistoryDirectory").toString();
+    m_semanticSearchEnabled = settings.value("search/semanticSearchEnabled", false).toBool();
+    m_nsfwBlockOutgoing = settings.value("nsfw/blockOutgoing", false).toBool();
+    m_nsfwBlockIncoming = settings.value("nsfw/blockIncoming", false).toBool();
+    m_nsfwThreshold = settings.value("nsfw/threshold", 0.8).toDouble();
+    if (m_nsfwThreshold < 0.0) {
+        m_nsfwThreshold = 0.0;
+    } else if (m_nsfwThreshold > 1.0) {
+        m_nsfwThreshold = 1.0;
+    }
 }
 
 void SettingsViewModel::setUserName(const QString& userName)
@@ -86,6 +95,73 @@ void SettingsViewModel::setChatHistoryDirectory(const QString& dir)
     settings.sync();
 
     emit chatHistoryDirectoryChanged();
+}
+
+void SettingsViewModel::setSemanticSearchEnabled(bool enabled)
+{
+    if (m_semanticSearchEnabled == enabled) {
+        return;
+    }
+
+    m_semanticSearchEnabled = enabled;
+
+    QSettings settings("FlyKylin", "FlyKylin");
+    settings.setValue("search/semanticSearchEnabled", m_semanticSearchEnabled);
+    settings.sync();
+
+    emit semanticSearchEnabledChanged();
+}
+
+void SettingsViewModel::setNsfwBlockOutgoing(bool enabled)
+{
+    if (m_nsfwBlockOutgoing == enabled) {
+        return;
+    }
+
+    m_nsfwBlockOutgoing = enabled;
+
+    QSettings settings("FlyKylin", "FlyKylin");
+    settings.setValue("nsfw/blockOutgoing", m_nsfwBlockOutgoing);
+    settings.sync();
+
+    emit nsfwBlockOutgoingChanged();
+}
+
+void SettingsViewModel::setNsfwBlockIncoming(bool enabled)
+{
+    if (m_nsfwBlockIncoming == enabled) {
+        return;
+    }
+
+    m_nsfwBlockIncoming = enabled;
+
+    QSettings settings("FlyKylin", "FlyKylin");
+    settings.setValue("nsfw/blockIncoming", m_nsfwBlockIncoming);
+    settings.sync();
+
+    emit nsfwBlockIncomingChanged();
+}
+
+void SettingsViewModel::setNsfwThreshold(double threshold)
+{
+    double clamped = threshold;
+    if (clamped < 0.0) {
+        clamped = 0.0;
+    } else if (clamped > 1.0) {
+        clamped = 1.0;
+    }
+
+    if (m_nsfwThreshold == clamped) {
+        return;
+    }
+
+    m_nsfwThreshold = clamped;
+
+    QSettings settings("FlyKylin", "FlyKylin");
+    settings.setValue("nsfw/threshold", m_nsfwThreshold);
+    settings.sync();
+
+    emit nsfwThresholdChanged();
 }
 
 void SettingsViewModel::chooseDownloadDirectory()
