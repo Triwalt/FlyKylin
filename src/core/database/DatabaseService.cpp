@@ -215,6 +215,83 @@ QList<core::Message> DatabaseService::loadMessages(const QString& localUserId, c
     return result;
 }
 
+QList<core::Message> DatabaseService::loadMessagesForSearch(const QString& localUserId,
+                                                            const QString& peerId,
+                                                            int limit) const
+{
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    QSqlQuery query(m_db);
+
+    QString sql =
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id ";
+
+    if (!peerId.isEmpty()) {
+        sql += "AND peer_id = :peer_id ";
+    }
+
+    sql += "ORDER BY timestamp DESC, rowid DESC LIMIT :limit";
+
+    query.prepare(sql);
+    query.bindValue(":local_user_id", localUserId);
+    if (!peerId.isEmpty()) {
+        query.bindValue(":peer_id", peerId);
+    }
+    const int effectiveLimit = (limit > 0) ? limit : 200;
+    query.bindValue(":limit", effectiveLimit);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load messages for search" << localUserId
+                   << "peer=" << peerId << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        result.append(message);
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "messages for search" << localUserId
+            << "peer=" << peerId;
+
+    return result;
+}
+
 QList<core::Message> DatabaseService::searchMessagesByKeyword(const QString& localUserId,
                                                               const QString& keyword,
                                                               const QString& peerId,

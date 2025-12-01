@@ -140,17 +140,25 @@ void ChatViewModel::setCurrentGroup(const QString& groupId,
         return;
     }
 
-    if (memberIds.isEmpty()) {
-        qWarning() << "[ChatViewModel] setCurrentGroup: group" << groupId
-                   << "has no members yet, opening empty group view";
+    QStringList effectiveMembers = memberIds;
+
+    if (effectiveMembers.isEmpty()) {
+        if (m_isGroupChat && groupId == m_currentGroupId && !m_groupMembers.isEmpty()) {
+            qWarning() << "[ChatViewModel] setCurrentGroup: empty memberIds for existing group"
+                       << groupId << ", reusing previous members" << m_groupMembers;
+            effectiveMembers = m_groupMembers;
+        } else {
+            qWarning() << "[ChatViewModel] setCurrentGroup: group" << groupId
+                       << "has no members yet, opening empty group view";
+        }
     }
 
     qInfo() << "[ChatViewModel] Switching to group" << groupId << "(" << groupName
-            << ") members=" << memberIds;
+            << ") members=" << effectiveMembers;
 
     m_isGroupChat = true;
     m_currentGroupId = groupId;
-    m_groupMembers = memberIds;
+    m_groupMembers = effectiveMembers;
     m_currentPeerId.clear();
     m_currentPeerName = groupName;
 

@@ -32,16 +32,33 @@ QList<core::Message> ChatSearchService::search(const QString& localUserId,
         return {};
     }
 
-    QList<core::Message> base =
-        db->searchMessagesByKeyword(localUserId, trimmed, peerId, candidateLimit);
+    const bool engineAvailable = ai::TextEmbeddingEngine::instance()->isAvailable();
+    const bool semanticAvailable = useSemantic && engineAvailable;
 
-    const bool semanticAvailable =
-        useSemantic && ai::TextEmbeddingEngine::instance()->isAvailable();
+    QList<core::Message> base;
+    if (semanticAvailable) {
+        // 相关性排序：不再依赖 SQL 的 LIKE 预过滤，而是从所有消息中取候选再做语义重排。
+        base = db->loadMessagesForSearch(localUserId, peerId, candidateLimit);
+    } else {
+        // 时间排序：仍然使用基于关键字的 SQL 过滤和按时间降序排序。
+        base = db->searchMessagesByKeyword(localUserId, trimmed, peerId, candidateLimit);
+    }
 
     if (!semanticAvailable || base.isEmpty()) {
         if (base.size() > limit) {
             base = base.mid(0, limit);
         }
+
+        qInfo() << "[ChatSearchService] Time-based order for query" << trimmed
+                << "base=" << base.size() << "peer=" << peerId;
+        for (int i = 0; i < base.size(); ++i) {
+            const auto& msg = base.at(i);
+            qInfo() << "  [TimeSort]" << i
+                    << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
+                    << msg.id()
+                    << msg.content().left(32);
+        }
+
         return base;
     }
 
@@ -51,7 +68,28 @@ QList<core::Message> ChatSearchService::search(const QString& localUserId,
         if (base.size() > limit) {
             base = base.mid(0, limit);
         }
+
+        qInfo() << "[ChatSearchService] Time-based order for query (no embedding)" << trimmed
+                << "base=" << base.size() << "peer=" << peerId;
+        for (int i = 0; i < base.size(); ++i) {
+            const auto& msg = base.at(i);
+            qInfo() << "  [TimeSort]" << i
+                    << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
+                    << msg.id()
+                    << msg.content().left(32);
+        }
+
         return base;
+    }
+
+    qInfo() << "[ChatSearchService] Base (time-ordered) candidates for query" << trimmed
+            << "base=" << base.size() << "peer=" << peerId;
+    for (int i = 0; i < base.size(); ++i) {
+        const auto& msg = base.at(i);
+        qInfo() << "  [Base]" << i
+                << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
+                << msg.id()
+                << msg.content().left(32);
     }
 
     struct ScoredMessage {
@@ -90,6 +128,17 @@ QList<core::Message> ChatSearchService::search(const QString& localUserId,
         if (base.size() > limit) {
             base = base.mid(0, limit);
         }
+
+        qInfo() << "[ChatSearchService] Time-based order for query (no valid embeddings)"
+                << trimmed << "base=" << base.size() << "peer=" << peerId;
+        for (int i = 0; i < base.size(); ++i) {
+            const auto& msg = base.at(i);
+            qInfo() << "  [TimeSort]" << i
+                    << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
+                    << msg.id()
+                    << msg.content().left(32);
+        }
+
         return base;
     }
 
@@ -98,11 +147,26 @@ QList<core::Message> ChatSearchService::search(const QString& localUserId,
                   if (a.score != b.score) {
                       return a.score > b.score;
                   }
-                  return a.message.timestamp() > b.message.timestamp();
+                  // 当语义得分相同时，使用时间升序作为 tie-breaker，
+                  // 以便与按时间（降序）排序的结果产生明显差异。
+                  return a.message.timestamp() < b.message.timestamp();
               });
 
-    QList<core::Message> result;
     const int resultCount = std::min(limit, static_cast<int>(scored.size()));
+
+    qInfo() << "[ChatSearchService] Semantic order for query" << trimmed
+            << "base=" << base.size() << "returned=" << resultCount << "peer="
+            << peerId;
+    for (int i = 0; i < resultCount; ++i) {
+        const auto& sm = scored[static_cast<std::size_t>(i)];
+        qInfo() << "  [Semantic]" << i
+                << sm.score
+                << sm.message.timestamp().toString("yyyy-MM-dd HH:mm:ss")
+                << sm.message.id()
+                << sm.message.content().left(32);
+    }
+
+    QList<core::Message> result;
     result.reserve(resultCount);
     for (int i = 0; i < resultCount; ++i) {
         result.append(scored[static_cast<std::size_t>(i)].message);
