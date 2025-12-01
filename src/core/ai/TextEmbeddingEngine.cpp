@@ -349,7 +349,16 @@ std::vector<float> TextEmbeddingEngine::computeEmbedding(const QString& text) co
                 return {};
             }
 
-            const int maxLen = static_cast<int>(ctx.inputSize);
+            int maxLen = 128;
+            std::vector<int64_t> inputShape = inputTensorInfo.GetShape();
+            if (!inputShape.empty()) {
+                if (inputShape.size() >= 2 && inputShape[1] > 0 && inputShape[1] <= 4096) {
+                    maxLen = static_cast<int>(inputShape[1]);
+                } else if (inputShape[0] > 0 && inputShape[0] <= 4096) {
+                    maxLen = static_cast<int>(inputShape[0]);
+                }
+            }
+
             std::vector<int64_t> inputIds;
             std::vector<int64_t> attentionMask;
             tokenizer.encode(text, inputIds, attentionMask, maxLen);

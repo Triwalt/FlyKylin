@@ -30,6 +30,11 @@ public:
     void appendMessage(const core::Message& message, const QString& localUserId);
     void clearHistory(const QString& localUserId, const QString& peerId);
 
+    // Load messages for semantic search. If peerId is empty, load across all peers.
+    QList<core::Message> loadMessagesForSearch(const QString& localUserId,
+                                               const QString& peerId,
+                                               int limit) const;
+
     // Simple keyword-based search over message content for a given local user.
     // If peerId is empty, search across all peers. Results are ordered by
     // timestamp DESC and limited by the provided limit (default 200).

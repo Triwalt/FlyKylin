@@ -161,7 +161,25 @@ Item {
                     Switch {
                         id: sortModeSwitch
                         checked: searchSortByRelevance
-                        onToggled: searchSortByRelevance = checked
+                        onToggled: {
+                            searchSortByRelevance = checked
+
+                            if (!globalSearchViewModel)
+                                return
+
+                            var text = globalSearchField.text
+                            if (!text || text.trim().length === 0)
+                                return
+
+                            var useSemantic = false
+                            if (settingsViewModel && settingsViewModel.semanticSearchEnabled && chatView.searchSortByRelevance) {
+                                useSemantic = true
+                            }
+
+                            globalSearchViewModel.search(text,
+                                                         useSemantic,
+                                                         "")
+                        }
                     }
                 }
             }
@@ -1100,6 +1118,13 @@ Item {
                             border.width: emojiTabButton.checked ? 1 : 0
                             border.color: emojiTabButton.checked ? Style.primaryLight : "transparent"
                         }
+                        contentItem: Text {
+                            text: emojiTabButton.text
+                            font: emojiTabButton.font
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            color: emojiTabButton.checked ? Style.textPrimary : Style.textSecondary
+                        }
                         onClicked: emojiTabIndex = 0
                     }
 
@@ -1114,6 +1139,13 @@ Item {
                             color: stickerTabButton.checked ? Style.surfaceHover : "transparent"
                             border.width: stickerTabButton.checked ? 1 : 0
                             border.color: stickerTabButton.checked ? Style.primaryLight : "transparent"
+                        }
+                        contentItem: Text {
+                            text: stickerTabButton.text
+                            font: stickerTabButton.font
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            color: stickerTabButton.checked ? Style.textPrimary : Style.textSecondary
                         }
                         onClicked: emojiTabIndex = 1
                     }
@@ -1174,6 +1206,13 @@ Item {
                                         color: emojiCategoryButton.checked ? Style.primaryLight : "transparent"
                                         border.width: 1
                                         border.color: emojiCategoryButton.checked ? Style.primary : "#E5E7EB"
+                                    }
+                                    contentItem: Text {
+                                        text: emojiCategoryButton.text
+                                        font: emojiCategoryButton.font
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        color: Style.textPrimary
                                     }
                                     onClicked: currentEmojiCategoryIndex = index
                                 }
