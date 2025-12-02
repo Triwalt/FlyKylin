@@ -4,7 +4,6 @@
  */
 
 #include "Message.h"
-#include <QUuid>
 
 namespace flykylin {
 namespace core {
@@ -26,7 +25,14 @@ Message::Message(const QString& id,
 
 QString Message::generateMessageId()
 {
-    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+    // 使用当前时间戳和进程内递增计数生成唯一ID，避免依赖 QUuid/QRandomGenerator，
+    // 以兼容当前 Linux Qt5 + libstdc++ 环境。
+    static quint64 counter = 0;
+
+    const qint64 timestamp = QDateTime::currentDateTimeUtc().toMSecsSinceEpoch();
+    const quint64 value = ++counter;
+
+    return QString::number(timestamp, 16) + QLatin1Char('-') + QString::number(value, 16);
 }
 
 bool Message::operator==(const Message& other) const

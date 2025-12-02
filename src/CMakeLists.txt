@@ -25,27 +25,43 @@ if(WIN32)
 endif()
 
 target_link_libraries(FlyKylin PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::Network
-    Qt6::Sql
-    Qt6::Concurrent
-    Qt6::Qml
-    Qt6::Quick
-    Qt6::QuickControls2
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::Qml
+    Qt${QT_VERSION_MAJOR}::Quick
+    Qt${QT_VERSION_MAJOR}::QuickControls2
     flykylin_core
     flykylin_protocol
 )
 
+if(IS_RK3566)
+    target_link_directories(FlyKylin PRIVATE
+        ${CMAKE_SYSROOT}/lib/aarch64-linux-gnu
+        ${CMAKE_SYSROOT}/usr/lib/aarch64-linux-gnu
+    )
+    target_link_libraries(FlyKylin PRIVATE mali)
+endif()
+
 # QCoro (Coroutines) - Use FetchContent to use system Qt
 include(FetchContent)
-FetchContent_Declare(
-    qcoro
-    GIT_REPOSITORY https://github.com/qcoro/qcoro.git
-    GIT_TAG        v0.9.0
-    OVERRIDE_FIND_PACKAGE
-)
+set(FLYKYLIN_QCORO_LOCAL_DIR "${CMAKE_SOURCE_DIR}/build-linux-qt5-gcc10-clean/_deps/qcoro-src")
+if(IS_RK3566 AND EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")
+    FetchContent_Declare(
+        qcoro
+        SOURCE_DIR "${FLYKYLIN_QCORO_LOCAL_DIR}"
+        OVERRIDE_FIND_PACKAGE
+    )
+else()
+    FetchContent_Declare(
+        qcoro
+        GIT_REPOSITORY https://github.com/qcoro/qcoro.git
+        GIT_TAG        v0.9.0
+        OVERRIDE_FIND_PACKAGE
+    )
+endif()
 # Disable QCoro tests and examples to speed up build
 set(QCORO_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(QCORO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -59,18 +75,17 @@ set(QCORO_WITH_QTQUICK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(qcoro)
 
 target_link_libraries(FlyKylin PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::Network
-    Qt6::Sql
-    Qt6::Concurrent
-    Qt6::Qml
-    Qt6::Quick
-    Qt6::QuickControls2
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::Qml
+    Qt${QT_VERSION_MAJOR}::Quick
+    Qt${QT_VERSION_MAJOR}::QuickControls2
     flykylin_core
-    QCoro6::Core
-    QCoro6::Network
+    QCoro${QT_VERSION_MAJOR}::Core
+    QCoro${QT_VERSION_MAJOR}::Network
 )
 
 # ONNX Runtime
@@ -82,7 +97,7 @@ endif()
 # Windows DLL部署
 if(WIN32)
     # 获取Qt安装路径
-    get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+    get_target_property(QT_QMAKE_EXECUTABLE Qt${QT_VERSION_MAJOR}::qmake IMPORTED_LOCATION)
     get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
     
     # 使用windeployqt自动部署Qt DLL 和 QML 模块

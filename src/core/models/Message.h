@@ -10,6 +10,7 @@
 #include <QString>
 #include <QDateTime>
 #include <QtGlobal>
+#include <QMetaType>
 
 namespace flykylin {
 namespace core {
@@ -135,5 +136,7 @@ private:
 } // namespace core
 } // namespace flykylin
 
-// Register Message as Qt meta-type for use in signals/slots
+// Register Message-related types as Qt meta-types for use in signals/slots
 Q_DECLARE_METATYPE(flykylin::core::Message)
+Q_DECLARE_METATYPE(flykylin::core::MessageStatus)
+Q_DECLARE_METATYPE(flykylin::core::MessageKind)

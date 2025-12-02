@@ -4,10 +4,10 @@
  * 这是现代化重构的QML UI示例，将在Sprint 3全面实施
  */
 
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
-import QtCore
+import QtQuick 2.12
+import QtQuick.Controls 2.5
+import QtQuick.Layouts 1.12
+import Qt.labs.settings 1.0
 import "."
 
 ApplicationWindow {

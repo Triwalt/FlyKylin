@@ -7,6 +7,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QCommandLineParser>
+#include <QUrl>
 #include <QtQuickControls2/QQuickStyle>
 #include <memory>
 #include "ui/windows/MainWindow.h"
@@ -32,6 +33,12 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationDomain("flykylin.local");
     QCoreApplication::setApplicationName("FlyKylin");
     QApplication app(argc, argv);
+
+#if defined(Q_OS_LINUX) && (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    // On Linux with Qt5 (e.g. WSL/xrdp environments), force Qt Quick to use
+    // the software rendering backend to avoid OpenGL context creation issues.
+    qputenv("QT_QUICK_BACKEND", "software");
+#endif
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     // Command line options
@@ -109,7 +116,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("settingsViewModel", &settingsViewModel);
     engine.rootContext()->setContextProperty("globalSearchViewModel", &globalSearchViewModel);
 
-    const QUrl url(u"qrc:/FlyKylin/src/ui/qml/Main.qml"_qs);
+    const QUrl url(QStringLiteral("qrc:/FlyKylin/src/ui/qml/Main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [url](QObject *obj, const QUrl &objUrl) {
         if (!obj && url == objUrl)

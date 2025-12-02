@@ -1,5 +1,5 @@
 pragma Singleton
-import QtQuick
+import QtQuick 2.12
 
 QtObject {
     // Brand Colors

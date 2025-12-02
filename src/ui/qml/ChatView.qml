@@ -6,18 +6,21 @@
  * 聊天视图组件 (QML)
  */
 
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
-import QtQuick.Layouts
-import QtQuick.Effects
-import QtQuick.Dialogs
-import QtCore
+import QtQuick 2.12
+import QtQuick.Controls 2.5
+import QtQuick.Layouts 1.12
+import QtQuick.Dialogs 1.3
+import Qt.labs.settings 1.1
 import "."
 
 Item {
     id: chatView
     
+    FontLoader {
+        id: emojiFont
+        source: "../assets/fonts/NotoColorEmoji.ttf"
+    }
+
     property var viewModel
     property var hostWindow: null
     property bool hideWindowForScreenshot: true
@@ -119,13 +122,6 @@ Item {
             radius: Style.radiusLarge
             border.width: 1
             border.color: "#E5E7EB"
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowColor: "#14000000"
-                shadowBlur: 12
-                shadowVerticalOffset: 4
-            }
         }
 
         onClosed: {
@@ -161,7 +157,26 @@ Item {
                     Switch {
                         id: sortModeSwitch
                         checked: searchSortByRelevance
-                        onToggled: searchSortByRelevance = checked
+                        onToggled: {
+                            searchSortByRelevance = checked
+
+                            if (!globalSearchViewModel)
+                                return
+
+                            var text = globalSearchField ? globalSearchField.text : ""
+                            if (!text || text.length === 0)
+                                return
+
+                            var useSemantic = false
+                            if (settingsViewModel && settingsViewModel.semanticSearchEnabled && chatView.searchSortByRelevance) {
+                                useSemantic = true
+                            }
+
+                            globalSearchViewModel.search(text,
+                                                         useSemantic,
+                                                         "")
+                            searchResultsPopup.open()
+                        }
                     }
                 }
             }
@@ -396,15 +411,6 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
             color: Style.surface
-            
-            // Shadow effect
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowColor: "#10000000"
-                shadowBlur: 10
-                shadowVerticalOffset: 2
-            }
             
             RowLayout {
                 anchors.fill: parent
@@ -751,14 +757,7 @@ Item {
                             }
                         }
 
-                        // Shadow for received messages only
-                        layer.enabled: !model.isMine
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowColor: "#08000000"
-                            shadowBlur: 4
-                            shadowVerticalOffset: 2
-                        }
+                        // Shadow for received messages only（Qt5 版本暂时不启用阴影特效）
                     }
 
                     // Timestamp directly under bubble, aligned with bubble edge
@@ -812,7 +811,7 @@ Item {
                 spacing: Style.spacingMedium
 
                 // Emoji 按钮
-                Basic.Button {
+                Button {
                     id: emojiBtn
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
@@ -853,7 +852,7 @@ Item {
                     }
                 }
 
-                Basic.Button {
+                Button {
                     id: screenshotBtn
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
@@ -893,7 +892,7 @@ Item {
                 }
 
                 // Image send button
-                Basic.Button {
+                Button {
                     id: imageBtn
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
@@ -925,7 +924,7 @@ Item {
                 }
 
                 // File send button
-                Basic.Button {
+                Button {
                     id: fileBtn
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
@@ -1064,13 +1063,6 @@ Item {
             radius: Style.radiusLarge
             border.width: 1
             border.color: "#E5E7EB"
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowColor: "#14000000"
-                shadowBlur: 12
-                shadowVerticalOffset: 4
-            }
         }
         onOpened: chatView.positionEmojiPopup()
 
@@ -1163,6 +1155,7 @@ Item {
                                 Button {
                                     id: emojiCategoryButton
                                     text: emojiCategories[index].label
+                                    font.family: emojiFont.name !== "" ? emojiFont.name : "Noto Color Emoji"
                                     checkable: true
                                     checked: currentEmojiCategoryIndex === index
                                     Layout.preferredWidth: 48
@@ -1197,7 +1190,7 @@ Item {
                                 id: emojiCell
                                 text: modelData
                                 font.pixelSize: 32
-                                font.family: "Noto Color Emoji"
+                                font.family: emojiFont.name !== "" ? emojiFont.name : "Noto Color Emoji"
                                 hoverEnabled: true
                                 padding: 0
 

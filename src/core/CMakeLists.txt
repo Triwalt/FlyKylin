@@ -66,10 +66,10 @@ target_include_directories(flykylin_core PUBLIC
 )
 
 target_link_libraries(flykylin_core PUBLIC
-    Qt6::Core
-    Qt6::Network
-    Qt6::Sql
-    Qt6::Gui
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::Gui
     flykylin_protocol
 )
 

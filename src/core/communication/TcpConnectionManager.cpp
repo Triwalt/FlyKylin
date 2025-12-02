@@ -7,6 +7,7 @@
 
 #include "TcpConnectionManager.h"
 #include "../models/PeerNode.h"
+#include "../communication/PeerDiscovery.h"
 #include <QDebug>
 #include <QMetaObject>
 
@@ -99,17 +100,22 @@ void TcpConnectionManager::setupPeerDiscovery(QObject* peerDiscovery) {
         qWarning() << "[TcpConnectionManager] setupPeerDiscovery: null peerDiscovery";
         return;
     }
-    
-    // Connect to peerDiscovered / peerOffline signals using old-style SIGNAL/SLOT macro
-    bool connectedDiscovered = connect(peerDiscovery,
-                                       SIGNAL(peerDiscovered(const flykylin::core::PeerNode&)),
-                                       this,
-                                       SLOT(onPeerDiscovered(const flykylin::core::PeerNode&)));
 
-    bool connectedOffline = connect(peerDiscovery,
-                                    SIGNAL(peerOffline(const QString&)),
+    auto* discovery = qobject_cast<flykylin::core::PeerDiscovery*>(peerDiscovery);
+    if (!discovery) {
+        qWarning() << "[TcpConnectionManager] setupPeerDiscovery: object is not a PeerDiscovery instance";
+        return;
+    }
+
+    bool connectedDiscovered = connect(discovery,
+                                       &flykylin::core::PeerDiscovery::peerDiscovered,
+                                       this,
+                                       &TcpConnectionManager::onPeerDiscovered);
+
+    bool connectedOffline = connect(discovery,
+                                    &flykylin::core::PeerDiscovery::peerOffline,
                                     this,
-                                    SLOT(onPeerOffline(const QString&)));
+                                    &TcpConnectionManager::onPeerOffline);
 
     if (connectedDiscovered && connectedOffline) {
         qInfo() << "[TcpConnectionManager] PeerDiscovery integration enabled";

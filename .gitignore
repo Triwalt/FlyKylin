@@ -59,6 +59,9 @@ qrc_*.cpp
 3rdparty/onnxruntime/
 3rdparty/rknn_api/
 3rdparty/rknn-toolkit2/
+3rdparty/onnxruntime-linux-*/
+3rdparty/onnxruntime-*/
+3rdparty/rknn-toolkit2-*/
 3rdparty/protobuf/
 
 # 测试覆盖率
@@ -92,6 +95,7 @@ vgcore.*
 # 打包文件
 *.zip
 *.tar.gz
+*.tgz
 *.deb
 *.rpm
 *.dmg

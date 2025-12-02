@@ -36,15 +36,18 @@ if(WIN32)
 elseif(UNIX AND NOT APPLE)
     set(PLATFORM_NAME "Linux")
     add_compile_definitions(Q_OS_LINUX)
-    
-    # 检测是否为ARM64 (RK3566)
-    execute_process(
-        COMMAND uname -m
-        OUTPUT_VARIABLE ARCH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    if(ARCH STREQUAL "aarch64")
+
+    # 根据目标体系结构和可选开关检测 RK3566 (ARM64)
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
         set(IS_RK3566 ON)
+    endif()
+
+    option(FLYKYLIN_FORCE_RK3566 "Force building for RK3566 target (e.g. cross-compilation)" OFF)
+    if(FLYKYLIN_FORCE_RK3566)
+        set(IS_RK3566 ON)
+    endif()
+
+    if(IS_RK3566)
         add_compile_definitions(RK3566_PLATFORM)
         message(STATUS "Building for RK3566 ARM64 platform")
     endif()
@@ -54,46 +57,142 @@ message(STATUS "Building for ${PLATFORM_NAME}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 
 # 查找依赖
-# Qt6 由本地环境或CI安装提供，这里不强制具体版本，只要是 Qt6 即可
+# Qt 由本地环境或CI安装提供，这里默认优先查找 Qt6，不存在则回退到 Qt5。
+# 在需要显式使用 Qt5（例如交叉编译或专门的 Qt5 环境）时，可以开启 FLYKYLIN_FORCE_QT5。
 
-find_package(Qt6 REQUIRED COMPONENTS
+option(FLYKYLIN_FORCE_QT5 "Prefer Qt5 over Qt6 when both are available" OFF)
+
+set(_FLYKYLIN_QT_COMPONENTS
     Core
     Gui
     Widgets
     Network
     Sql
-    Concurrent
     Test
     Qml
     Quick
     QuickControls2
 )
 
-# Protobuf + Abseil + utf8_range are provided by vcpkg; prefer the vcpkg package configs
+# QtConcurrent 在 RK3566 rootfs 中不存在，因此在该平台上不要依赖 QtConcurrent 模块。
+if(NOT IS_RK3566)
+    list(APPEND _FLYKYLIN_QT_COMPONENTS Concurrent)
+endif()
+
+if(FLYKYLIN_FORCE_QT5)
+    find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS ${_FLYKYLIN_QT_COMPONENTS})
+else()
+    find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS ${_FLYKYLIN_QT_COMPONENTS})
+endif()
+
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${_FLYKYLIN_QT_COMPONENTS})
+
+# When cross-compiling for RK3566, we may only have Qt5 runtime libraries in
+# the target sysroot but use host Qt5 development files (headers/CMake
+# config). In that case, make sure the Qt imported targets link against the
+# aarch64 libraries from the sysroot instead of host x86_64 libraries.
+if(IS_RK3566 AND QT_VERSION_MAJOR EQUAL 5)
+    set(_QT5_AARCH64_LIB_DIR "${CMAKE_SYSROOT}/usr/lib/aarch64-linux-gnu")
+    foreach(_qtmod Core Gui Widgets Network Sql Concurrent Test Qml Quick QuickControls2)
+        if(TARGET Qt5::${_qtmod})
+            # Explicitly probe common libQt5*.so paths in the RK3566 sysroot
+            set(_qt_candidates
+                "${_QT5_AARCH64_LIB_DIR}/libQt5${_qtmod}.so"
+                "${_QT5_AARCH64_LIB_DIR}/libQt5${_qtmod}.so.5"
+                "${_QT5_AARCH64_LIB_DIR}/libQt5${_qtmod}.so.5.12"
+                "${_QT5_AARCH64_LIB_DIR}/libQt5${_qtmod}.so.5.12.8"
+            )
+
+            set(Qt5${_qtmod}_AARCH64_LIB "")
+            foreach(_cand IN LISTS _qt_candidates)
+                if(EXISTS "${_cand}")
+                    set(Qt5${_qtmod}_AARCH64_LIB "${_cand}")
+                    break()
+                endif()
+            endforeach()
+
+            if(Qt5${_qtmod}_AARCH64_LIB)
+                set_target_properties(Qt5::${_qtmod} PROPERTIES
+                    IMPORTED_LOCATION "${Qt5${_qtmod}_AARCH64_LIB}"
+                    IMPORTED_LOCATION_RELEASE "${Qt5${_qtmod}_AARCH64_LIB}")
+                message(STATUS "[RK3566] Qt5::${_qtmod} -> ${Qt5${_qtmod}_AARCH64_LIB}")
+            else()
+                get_target_property(_qt_orig_loc Qt5::${_qtmod} IMPORTED_LOCATION_RELEASE)
+                message(WARNING "[RK3566] Failed to find aarch64 Qt5${_qtmod} in ${_QT5_AARCH64_LIB_DIR}, keeping host lib: ${_qt_orig_loc}")
+            endif()
+        endif()
+    endforeach()
+endif()
+
+# Protobuf + Abseil + utf8_range are provided by vcpkg on Windows/CI; prefer
+# the vcpkg package configs there. On Linux/WSL, fall back to system packages
+# if CONFIG packages are not available.
 if(VCPKG_INSTALLED_DIR AND VCPKG_TARGET_TRIPLET)
     set(Protobuf_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/protobuf")
     set(absl_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/absl")
     set(utf8_range_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/utf8_range")
 endif()
 
-find_package(Protobuf CONFIG REQUIRED)
-find_package(absl CONFIG REQUIRED)
-find_package(utf8_range CONFIG REQUIRED)
+if(WIN32)
+    find_package(Protobuf CONFIG REQUIRED)
+    find_package(absl CONFIG REQUIRED)
+    find_package(utf8_range CONFIG REQUIRED)
+else()
+    # 在非 Windows 平台上始终使用 CMake 的模块模式，绑定到系统 Protobuf
+    # (protobuf-compiler/libprotobuf-dev)，避免误用 Windows/vcpkg/Anaconda 的
+    # Protobuf CONFIG 包和 protoc.exe。
+    find_package(Protobuf REQUIRED MODULE)
+endif()
 
 # ONNX Runtime
 # 注意：Python环境中有onnxruntime 1.23.2，C++ API需要单独下载
 # 从 https://github.com/microsoft/onnxruntime/releases 下载预编译库
 set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime" CACHE PATH "ONNX Runtime root directory")
-if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h" AND EXISTS "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
-    message(STATUS "Found ONNX Runtime: ${ONNXRUNTIME_ROOT}")
-    set(ONNXRUNTIME_FOUND TRUE)
-    # 添加库路径
-    link_directories(${ONNXRUNTIME_ROOT}/lib)
-else()
-    message(WARNING "ONNX Runtime C++ headers or libs not found in ${ONNXRUNTIME_ROOT}")
-    message(WARNING "Please download from: https://github.com/microsoft/onnxruntime/releases")
-    message(WARNING "Extract to: ${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime (with include/ and lib/)")
-    set(ONNXRUNTIME_FOUND FALSE)
+set(ONNXRUNTIME_FOUND FALSE)
+
+if(UNIX AND NOT APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
+        set(_FLYKYLIN_ONNXRUNTIME_CANDIDATE "${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime-linux-x64-1.23.2")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+        set(_FLYKYLIN_ONNXRUNTIME_CANDIDATE "${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime-linux-aarch64-1.23.2")
+    endif()
+
+    if(DEFINED _FLYKYLIN_ONNXRUNTIME_CANDIDATE AND EXISTS "${_FLYKYLIN_ONNXRUNTIME_CANDIDATE}/include/onnxruntime_cxx_api.h")
+        if(ONNXRUNTIME_ROOT STREQUAL "${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime")
+            set(ONNXRUNTIME_ROOT "${_FLYKYLIN_ONNXRUNTIME_CANDIDATE}" CACHE PATH "ONNX Runtime root directory" FORCE)
+        endif()
+    endif()
+endif()
+
+if(WIN32)
+    if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h" AND EXISTS "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
+        message(STATUS "Found ONNX Runtime: ${ONNXRUNTIME_ROOT}")
+        set(ONNXRUNTIME_FOUND TRUE)
+        link_directories(${ONNXRUNTIME_ROOT}/lib)
+    else()
+        message(WARNING "ONNX Runtime C++ headers or libs not found in ${ONNXRUNTIME_ROOT}")
+        message(WARNING "Please download from: https://github.com/microsoft/onnxruntime/releases")
+        message(WARNING "Extract to: ${CMAKE_SOURCE_DIR}/3rdparty/onnxruntime (with include/ and lib/)")
+    endif()
+elseif(UNIX)
+    if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
+        set(_FLYKYLIN_ONNXRUNTIME_LIB "")
+        if(EXISTS "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so")
+            set(_FLYKYLIN_ONNXRUNTIME_LIB "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so")
+        elseif(EXISTS "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1")
+            set(_FLYKYLIN_ONNXRUNTIME_LIB "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1")
+        elseif(EXISTS "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1.23.2")
+            set(_FLYKYLIN_ONNXRUNTIME_LIB "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1.23.2")
+        endif()
+
+        if(_FLYKYLIN_ONNXRUNTIME_LIB)
+            message(STATUS "Found ONNX Runtime (Linux): ${ONNXRUNTIME_ROOT}")
+            set(ONNXRUNTIME_FOUND TRUE)
+            link_directories(${ONNXRUNTIME_ROOT}/lib)
+        else()
+            message(WARNING "ONNX Runtime headers found but no Linux .so in ${ONNXRUNTIME_ROOT}/lib; disabling ONNX Runtime on this platform")
+        endif()
+    endif()
 endif()
 
 # ONNX模型路径
@@ -104,8 +203,8 @@ message(STATUS "BGE Model: ${BGE_MODEL_PATH}")
 
 # RKNPU (仅RK3566)
 if(IS_RK3566)
-    set(RKNPU_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/rknn_api" CACHE PATH "RKNPU root directory")
-    if(EXISTS "${RKNPU_ROOT}/include")
+    set(RKNPU_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/rknn-toolkit2-2.3.2/rknpu2/runtime/Linux/librknn_api/aarch64" CACHE PATH "RKNPU root directory")
+    if(EXISTS "${RKNPU_ROOT}/include/rknn_api.h" AND EXISTS "${RKNPU_ROOT}/librknnrt.so")
         message(STATUS "Found RKNPU: ${RKNPU_ROOT}")
         set(RKNPU_FOUND TRUE)
     else()
@@ -163,10 +262,18 @@ if(WIN32)
 elseif(UNIX)
     set(CPACK_GENERATOR "DEB;TGZ")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "FlyKylin Team")
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-base, libprotobuf23")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "qtbase5-dev | qt6-base, libprotobuf23")
 endif()
 
 include(CPack)
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    set(QT_VERSION_STRING ${Qt6_VERSION})
+elseif(QT_VERSION_MAJOR EQUAL 5)
+    set(QT_VERSION_STRING ${Qt5_VERSION})
+else()
+    set(QT_VERSION_STRING "Unknown")
+endif()
 
 # 打印配置摘要
 message(STATUS "========================================")
@@ -175,7 +282,7 @@ message(STATUS "========================================")
 message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  Platform: ${PLATFORM_NAME}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
-message(STATUS "  Qt Version: ${Qt6_VERSION}")
+message(STATUS "  Qt Version: ${QT_VERSION_STRING}")
 message(STATUS "  Build Tests: ${BUILD_TESTS}")
 message(STATUS "  ONNX Runtime: ${ONNXRUNTIME_FOUND}")
 if(IS_RK3566)

@@ -110,6 +110,21 @@
         "BUILD_TESTS": "ON",
         "RK3566_PLATFORM": "ON"
       }
+    },
+    {
+      "name": "linux-arm64-rk3566-cross",
+      "displayName": "Linux ARM64 RK3566 (cross, Qt5)",
+      "description": "Cross-compile for RK3566 using system Qt5 arm64 packages",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-arm64-rk3566-cross",
+      "toolchainFile": "${sourceDir}/tools/developer/toolchain-rk3566-aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "OFF",
+        "FLYKYLIN_FORCE_RK3566": "ON",
+        "FLYKYLIN_FORCE_QT5": "ON",
+        "Qt5_DIR": "/usr/lib/x86_64-linux-gnu/cmake/Qt5"
+      }
     }
   ],
   "buildPresets": [
@@ -137,6 +152,12 @@
       "configurePreset": "linux-arm64-release",
       "displayName": "Build Linux ARM64 Release",
       "description": "Build Linux ARM64 Release for RK3566"
+    },
+    {
+      "name": "linux-arm64-rk3566-cross",
+      "configurePreset": "linux-arm64-rk3566-cross",
+      "displayName": "Build Linux ARM64 RK3566 (cross)",
+      "description": "Cross-compile Linux ARM64 RK3566 build"
     }
   ],
   "testPresets": [

@@ -45,7 +45,14 @@ TcpConnection::TcpConnection(const QString& peerId,
     connect(m_socket, &QTcpSocket::connected, this, &TcpConnection::onConnected);
     connect(m_socket, &QTcpSocket::disconnected, this, &TcpConnection::onDisconnected);
     connect(m_socket, &QTcpSocket::readyRead, this, &TcpConnection::onReadyRead);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(m_socket, &QTcpSocket::errorOccurred, this, &TcpConnection::onSocketError);
+#else
+    connect(m_socket,
+            static_cast<void (QTcpSocket::*)(QAbstractSocket::SocketError)>(&QTcpSocket::error),
+            this,
+            &TcpConnection::onSocketError);
+#endif
     
     // Configure heartbeat timer
     m_heartbeatTimer->setInterval(kHeartbeatInterval);
@@ -91,7 +98,14 @@ TcpConnection::TcpConnection(const QString& peerId,
         connect(m_socket, &QTcpSocket::connected, this, &TcpConnection::onConnected);
         connect(m_socket, &QTcpSocket::disconnected, this, &TcpConnection::onDisconnected);
         connect(m_socket, &QTcpSocket::readyRead, this, &TcpConnection::onReadyRead);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
         connect(m_socket, &QTcpSocket::errorOccurred, this, &TcpConnection::onSocketError);
+#else
+        connect(m_socket,
+                static_cast<void (QTcpSocket::*)(QAbstractSocket::SocketError)>(&QTcpSocket::error),
+                this,
+                &TcpConnection::onSocketError);
+#endif
 
         m_lastActivity = QDateTime::currentDateTime();
     } else {

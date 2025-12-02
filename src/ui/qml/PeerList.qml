@@ -10,10 +10,10 @@
  * 替代 PeerListWidget.cpp/.h，代码量减少60%
  */
 
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
-import QtQuick.Dialogs
+import QtQuick 2.12
+import QtQuick.Controls 2.5
+import QtQuick.Layouts 1.12
+import QtQuick.Dialogs 1.3
 import "."
 
 Item {
@@ -37,7 +37,7 @@ Item {
         id: deleteSessionDialog
         title: qsTr("删除会话")
         text: qsTr("确定要删除与 %1 的会话并清空聊天记录吗？").arg(peerList.pendingDeleteUserName)
-        buttons: MessageDialog.Ok | MessageDialog.Cancel
+        standardButtons: MessageDialog.Ok | MessageDialog.Cancel
 
         onAccepted: {
             if (viewModel && peerList.pendingDeleteUserId !== "") {
