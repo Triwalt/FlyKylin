@@ -124,6 +124,7 @@ private slots:
     void processMessageQueue(const QString& peerId);
     void onPeerDiscovered(const flykylin::core::PeerNode& node);
     void onPeerOffline(const QString& userId);
+    void onPeerIdUpdated(const QString& oldPeerId, const QString& newPeerId);
 
 private:
     TcpConnection* getOrCreateConnection(const QString& peerId, 

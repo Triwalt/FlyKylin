@@ -58,6 +58,8 @@ void TcpConnectionManager::addIncomingConnection(const QString& peerId, QTcpSock
             this, &TcpConnectionManager::onMessageSent);
     connect(conn, &TcpConnection::messageFailed,
             this, &TcpConnectionManager::onMessageFailed);
+    connect(conn, &TcpConnection::peerIdUpdated,
+            this, &TcpConnectionManager::onPeerIdUpdated);
 
     m_connections[peerId] = conn;
 
@@ -189,25 +191,26 @@ void TcpConnectionManager::sendMessage(const QString& peerId,
         emit messageFailed(peerId, 0, "Not connected");
         return;
     }
-    
+
     // Get or create message queue
     MessageQueue* queue = m_messageQueues.value(peerId, nullptr);
     if (!queue) {
         queue = new MessageQueue(this);
         m_messageQueues[peerId] = queue;
-        connect(queue, &MessageQueue::messageEnqueued, 
+        connect(queue, &MessageQueue::messageEnqueued,
                 this, [this, peerId]() { processMessageQueue(peerId); });
     }
-    
+
     TcpConnection* conn = m_connections[peerId];
-    
-    // If connected, send directly
-    if (conn->state() == ConnectionState::Connected) {
+
+    // Only send immediately if the TCP connection is established AND
+    // the application-level protobuf handshake has completed.
+    if (conn->state() == ConnectionState::Connected && conn->isHandshakeCompleted()) {
         conn->sendMessage(data);
     } else {
-        // Otherwise, queue the message
+        // Queue the message until the connection and handshake are both ready.
         queue->enqueue(data, priority);
-        qDebug() << "[TcpConnectionManager] Message queued for" << peerId 
+        qDebug() << "[TcpConnectionManager] Message queued for" << peerId
                  << "queue_size=" << queue->size();
     }
 }
@@ -283,6 +286,59 @@ void TcpConnectionManager::onMessageFailed(quint64 messageId, QString error) {
     emit messageFailed(peerId, messageId, error);
 }
 
+void TcpConnectionManager::onPeerIdUpdated(const QString& oldPeerId, const QString& newPeerId) {
+    if (oldPeerId == newPeerId) {
+        return;
+    }
+
+    if (!m_connections.contains(oldPeerId)) {
+        qWarning() << "[TcpConnectionManager] peerIdUpdated: old peerId not found" << oldPeerId
+                   << "->" << newPeerId;
+        return;
+    }
+
+    TcpConnection* conn = m_connections.value(oldPeerId, nullptr);
+    if (!conn) {
+        qWarning() << "[TcpConnectionManager] peerIdUpdated: null connection for" << oldPeerId;
+        m_connections.remove(oldPeerId);
+        return;
+    }
+
+    if (m_connections.contains(newPeerId)) {
+        // Prefer the existing connection for the new peerId and close the duplicate.
+        if (m_connections.value(newPeerId) != conn) {
+            qInfo() << "[TcpConnectionManager] peerIdUpdated: connection for" << newPeerId
+                    << "already exists, closing duplicate for" << oldPeerId;
+            conn->disconnectFromHost();
+            conn->deleteLater();
+        }
+
+        // Clean up any stale queue under the old key.
+        m_connections.remove(oldPeerId);
+        if (m_messageQueues.contains(oldPeerId)) {
+            MessageQueue* queue = m_messageQueues.take(oldPeerId);
+            queue->deleteLater();
+        }
+        return;
+    }
+
+    // Move connection to the new key.
+    m_connections.remove(oldPeerId);
+    m_connections[newPeerId] = conn;
+
+    // Move any pending message queue as well.
+    if (m_messageQueues.contains(oldPeerId)) {
+        MessageQueue* queue = m_messageQueues.take(oldPeerId);
+        m_messageQueues[newPeerId] = queue;
+    }
+
+    qInfo() << "[TcpConnectionManager] Updated peer ID from" << oldPeerId << "to" << newPeerId;
+
+    // Notify listeners that the logical peer ID has changed.
+    emit connectionStateChanged(newPeerId, conn->state(),
+                                QStringLiteral("Peer ID updated after handshake"));
+}
+
 void TcpConnectionManager::cleanupIdleConnections() {
     QDateTime now = QDateTime::currentDateTime();
     QList<QString> toRemove;
@@ -317,19 +373,19 @@ void TcpConnectionManager::processMessageQueue(const QString& peerId) {
     
     MessageQueue* queue = m_messageQueues[peerId];
     TcpConnection* conn = m_connections.value(peerId, nullptr);
-    
-    if (!conn || conn->state() != ConnectionState::Connected) {
-        qDebug() << "[TcpConnectionManager] Cannot process queue, not connected:" << peerId;
+
+    if (!conn || conn->state() != ConnectionState::Connected || !conn->isHandshakeCompleted()) {
+        qDebug() << "[TcpConnectionManager] Cannot process queue, connection not ready:" << peerId;
         return;
     }
-    
-    // Send all queued messages
+
+    // Send all queued messages now that the TCP connection and handshake are ready.
     while (!queue->isEmpty()) {
         MessageQueue::QueuedMessage msg = queue->dequeue();
-        
-        qInfo() << "[TcpConnectionManager] Sending queued message for" << peerId 
+
+        qInfo() << "[TcpConnectionManager] Sending queued message for" << peerId
                 << "id=" << msg.messageId;
-        
+
         conn->sendMessage(msg.data);
     }
 }
@@ -342,21 +398,27 @@ TcpConnection* TcpConnectionManager::getOrCreateConnection(const QString& peerId
     }
     
     qInfo() << "[TcpConnectionManager] Creating new connection for" << peerId;
-    
+
     TcpConnection* conn = new TcpConnection(peerId, ip, port, this);
-    
+
     // Connect signals
-    connect(conn, &TcpConnection::stateChanged, 
+    connect(conn, &TcpConnection::stateChanged,
             this, &TcpConnectionManager::onConnectionStateChanged);
-    connect(conn, &TcpConnection::messageReceived, 
+    connect(conn, &TcpConnection::messageReceived,
             this, &TcpConnectionManager::onMessageReceived);
-    connect(conn, &TcpConnection::messageSent, 
+    connect(conn, &TcpConnection::messageSent,
             this, &TcpConnectionManager::onMessageSent);
-    connect(conn, &TcpConnection::messageFailed, 
+    connect(conn, &TcpConnection::messageFailed,
             this, &TcpConnectionManager::onMessageFailed);
-    
+    connect(conn, &TcpConnection::peerIdUpdated,
+            this, &TcpConnectionManager::onPeerIdUpdated);
+
+    // When handshake completes, ensure any queued messages are flushed.
+    connect(conn, &TcpConnection::handshakeCompleted,
+            this, [this, peerId]() { processMessageQueue(peerId); });
+
     m_connections[peerId] = conn;
-    
+
     return conn;
 }
 

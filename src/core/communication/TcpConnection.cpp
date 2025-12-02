@@ -553,6 +553,18 @@ void TcpConnection::handleHandshakeRequest(const QByteArray& payload) {
         return;
     }
 
+    // Update logical peer ID from handshake user_id when available.
+    // For incoming connections, m_peerId is initially a temporary IP:port key
+    // assigned by TcpServer; after handshake we prefer the stable userId.
+    QString remoteUserId = QString::fromStdString(request.user_id());
+    if (!remoteUserId.isEmpty()) {
+        QString oldPeerId = m_peerId;
+        if (remoteUserId != oldPeerId) {
+            m_peerId = remoteUserId;
+            emit peerIdUpdated(oldPeerId, remoteUserId);
+        }
+    }
+
     m_peerName = QString::fromStdString(request.user_name());
 
     qInfo() << "[TcpConnection]" << m_peerId

@@ -48,7 +48,7 @@ endif()
 # QCoro (Coroutines) - Use FetchContent to use system Qt
 include(FetchContent)
 set(FLYKYLIN_QCORO_LOCAL_DIR "${CMAKE_SOURCE_DIR}/build-linux-qt5-gcc10-clean/_deps/qcoro-src")
-if(IS_RK3566 AND EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")
+if(EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")
     FetchContent_Declare(
         qcoro
         SOURCE_DIR "${FLYKYLIN_QCORO_LOCAL_DIR}"

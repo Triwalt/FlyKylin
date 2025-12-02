@@ -107,6 +107,11 @@ public:
      * @brief Get peer ID
      */
     QString peerId() const { return m_peerId; }
+
+    /**
+     * @brief Check if application-level handshake has completed
+     */
+    bool isHandshakeCompleted() const { return m_handshakeState == HandshakeState::Completed; }
     
     /**
      * @brief Get last activity time
@@ -150,6 +155,13 @@ signals:
      * @brief Handshake completed successfully
      */
     void handshakeCompleted();
+
+    /**
+     * @brief Peer ID updated after handshake (e.g. from IP:port to stable user ID)
+     * @param oldPeerId Previous peer identifier
+     * @param newPeerId New peer identifier (typically remote userId)
+     */
+    void peerIdUpdated(const QString& oldPeerId, const QString& newPeerId);
     
     /**
      * @brief Handshake failed
