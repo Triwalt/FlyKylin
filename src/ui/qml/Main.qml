@@ -86,23 +86,8 @@ ApplicationWindow {
     }
 
     function countGroupMembers(members) {
-        if (!members)
-            return 0
-        if (typeof members.length === "number")
-            return members.length
-
-        var n = 0
-        var keys = Object.keys(members)
-        for (var i = 0; i < keys.length; ++i) {
-            var k = keys[i]
-            if (k === "length")
-                continue
-            var idx = parseInt(k)
-            if (isNaN(idx))
-                continue
-            ++n
-        }
-        return n
+        var arr = normalizeGroupMembers(members)
+        return arr.length
     }
 
     function loadContacts() {
@@ -164,10 +149,12 @@ ApplicationWindow {
                 var g = arr[i]
                 if (!g.id || !g.name || !g.members)
                     continue
+                var membersArray = normalizeGroupMembers(g.members)
                 groupsModel.append({
                                        id: g.id,
                                        name: g.name,
-                                       members: g.members
+                                       members: membersArray,
+                                       memberCount: membersArray.length
                                    })
             }
         } catch (e) {
@@ -182,7 +169,8 @@ ApplicationWindow {
             arr.push({
                          id: g.id,
                          name: g.name,
-                         members: g.members
+                         members: normalizeGroupMembers(g.members),
+                         memberCount: g.memberCount // Explicitly save memberCount
                      })
         }
         groupsStore.groupsJson = JSON.stringify(arr)
@@ -710,7 +698,7 @@ ApplicationWindow {
                                             }
 
                                             Label {
-                                                text: qsTr("成员数: %1").arg(countGroupMembers(members))
+                                                text: qsTr("成员数: %1").arg(memberCount)
                                                 font: Style.fontCaption
                                                 color: Style.textSecondary
                                             }
@@ -849,7 +837,8 @@ ApplicationWindow {
                                     groupsModel.append({
                                                            id: groupId,
                                                            name: name,
-                                                           members: membersArray
+                                                           members: membersArray,
+                                                           memberCount: membersArray.length
                                                        })
                                     saveGroups()
                                     chatViewModel.setCurrentGroup(groupId, name, membersArray)
@@ -924,7 +913,8 @@ ApplicationWindow {
                 groupsModel.set(index, {
                                      id: g.id,
                                      name: g.name,
-                                     members: members
+                                     members: members,
+                                     memberCount: members.length
                                  })
                 saveGroups()
 
