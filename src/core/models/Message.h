@@ -89,6 +89,8 @@ public:
     QString mimeType() const { return m_mimeType; }
     bool nsfwChecked() const { return m_nsfwChecked; }
     bool nsfwPassed() const { return m_nsfwPassed; }
+    bool isGroup() const { return m_isGroup; }
+    QString groupId() const { return m_groupId; }
 
     // Setters
     void setId(const QString& id) { m_id = id; }
@@ -105,6 +107,8 @@ public:
     void setMimeType(const QString& mimeType) { m_mimeType = mimeType; }
     void setNsfwChecked(bool checked) { m_nsfwChecked = checked; }
     void setNsfwPassed(bool passed) { m_nsfwPassed = passed; }
+    void setIsGroup(bool isGroup) { m_isGroup = isGroup; }
+    void setGroupId(const QString& groupId) { m_groupId = groupId; }
 
     /**
      * @brief 生成唯一消息ID
@@ -131,6 +135,8 @@ private:
     QString m_mimeType;
     bool m_nsfwChecked{false};
     bool m_nsfwPassed{false};
+    bool m_isGroup{false};
+    QString m_groupId;
 };
 
 } // namespace core

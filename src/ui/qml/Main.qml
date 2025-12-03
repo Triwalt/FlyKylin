@@ -150,6 +150,10 @@ ApplicationWindow {
                 if (!g.id || !g.name || !g.members)
                     continue
                 var membersArray = normalizeGroupMembers(g.members)
+                if (settingsViewModel && settingsViewModel.localUserId
+                        && membersArray.indexOf(settingsViewModel.localUserId) === -1) {
+                    membersArray.push(settingsViewModel.localUserId)
+                }
                 groupsModel.append({
                                        id: g.id,
                                        name: g.name,
@@ -510,7 +514,7 @@ ApplicationWindow {
                                                     }
 
                                                     Label {
-                                                        text: qsTr("成员数: %1").arg(countGroupMembers(members))
+                                                        text: qsTr("成员数: %1").arg(memberCount)
                                                         font: Style.fontCaption
                                                         color: Style.textSecondary
                                                     }
@@ -822,6 +826,7 @@ ApplicationWindow {
                                         }
 
                                         ScrollBar.vertical: ScrollBar {}
+
                                     }
                                 }
 
@@ -834,6 +839,10 @@ ApplicationWindow {
                                                ? groupNameField.text
                                                : qsTr("新群组")
                                     var membersArray = normalizeGroupMembers(selectedIds)
+                                    if (settingsViewModel && settingsViewModel.localUserId
+                                            && membersArray.indexOf(settingsViewModel.localUserId) === -1) {
+                                        membersArray.push(settingsViewModel.localUserId)
+                                    }
                                     groupsModel.append({
                                                            id: groupId,
                                                            name: name,
@@ -841,6 +850,9 @@ ApplicationWindow {
                                                            memberCount: membersArray.length
                                                        })
                                     saveGroups()
+                                    if (chatViewModel && settingsViewModel && settingsViewModel.localUserId) {
+                                        chatViewModel.registerGroup(groupId, membersArray, settingsViewModel.localUserId)
+                                    }
                                     chatViewModel.setCurrentGroup(groupId, name, membersArray)
                                     // 新建群组后也回到“会话”页，左侧展示会话+群聊列表
                                     leftTabs.currentIndex = 0
@@ -918,10 +930,63 @@ ApplicationWindow {
                                  })
                 saveGroups()
 
+                if (chatViewModel && settingsViewModel && settingsViewModel.localUserId) {
+                    chatViewModel.registerGroup(g.id, members, settingsViewModel.localUserId)
+                }
+
                 // Switch to the updated group chat and refresh aggregated history
                 chatViewModel.setCurrentGroup(g.id, g.name, members)
                 // 回到“会话”页，左侧展示会话+群聊列表，方便切换
                 leftTabs.currentIndex = 0
+            }
+        }
+    }
+
+    // Auto-join groups when receiving group messages from other devices.
+    Connections {
+        target: chatViewModel
+
+        function onGroupMessageDiscovered(groupId, fromUserId, toUserId) {
+            if (!groupId || groupId === "")
+                return
+
+            if (!settingsViewModel || !settingsViewModel.localUserId)
+                return
+
+            var localId = settingsViewModel.localUserId
+
+            // Skip if this device is the sender; local groups are already
+            // managed via groupsModel/saveGroups.
+            if (fromUserId === localId)
+                return
+
+            // Check if the group already exists.
+            for (var i = 0; i < groupsModel.count; ++i) {
+                var g = groupsModel.get(i)
+                if (g.id === groupId)
+                    return
+            }
+
+            // Derive a minimal member list: local user + sender + receiver (if any).
+            var members = []
+            members.push(localId)
+            if (fromUserId && members.indexOf(fromUserId) === -1)
+                members.push(fromUserId)
+            if (toUserId && members.indexOf(toUserId) === -1)
+                members.push(toUserId)
+
+            var name = qsTr("群组 %1").arg(groupId)
+
+            groupsModel.append({
+                                   id: groupId,
+                                   name: name,
+                                   members: members,
+                                   memberCount: members.length
+                               })
+            saveGroups()
+
+            if (chatViewModel) {
+                chatViewModel.registerGroup(groupId, members, fromUserId)
             }
         }
     }

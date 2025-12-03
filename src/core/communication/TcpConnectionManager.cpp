@@ -8,6 +8,7 @@
 #include "TcpConnectionManager.h"
 #include "../models/PeerNode.h"
 #include "../communication/PeerDiscovery.h"
+#include "../config/UserProfile.h"
 #include <QDebug>
 #include <QMetaObject>
 
@@ -127,14 +128,35 @@ void TcpConnectionManager::setupPeerDiscovery(QObject* peerDiscovery) {
 }
 
 void TcpConnectionManager::onPeerDiscovered(const flykylin::core::PeerNode& node) {
-    QString peerId = node.userId();
-    QString ip = node.ipAddress().toString();
-    quint16 port = node.tcpPort();
-    
-    qInfo() << "[TcpConnectionManager] Peer discovered:" << peerId 
-            << "at" << ip << ":" << port << "- Auto-connecting...";
-    
-    // Auto-connect to the discovered peer
+    const QString peerId = node.userId();
+    const QString ip = node.ipAddress().toString();
+    const quint16 port = node.tcpPort();
+
+    const QString localUserId = flykylin::core::UserProfile::instance().userId();
+
+    if (peerId.isEmpty() || ip.isEmpty() || port == 0) {
+        qWarning() << "[TcpConnectionManager] onPeerDiscovered: invalid peer" << peerId
+                   << ip << port;
+        return;
+    }
+
+    if (peerId == localUserId) {
+        return;
+    }
+
+    // Deterministic dialing rule: to avoid duplicate cross-connections and
+    // handshake loops, only the peer whose userId is lexicographically
+    // smaller initiates the outbound TCP connection. The other side relies on
+    // its TcpServer to accept the incoming connection.
+    if (localUserId >= peerId) {
+        qInfo() << "[TcpConnectionManager] Peer discovered" << peerId << "at" << ip << ":"
+                << port << "- waiting for incoming connection (localUserId >= remote)";
+        return;
+    }
+
+    qInfo() << "[TcpConnectionManager] Peer discovered:" << peerId << "at" << ip << ":"
+            << port << "- initiating outbound connection (localUserId < remote)";
+
     connectToPeer(peerId, ip, port);
 }
 

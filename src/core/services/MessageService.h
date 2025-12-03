@@ -44,6 +44,11 @@ public:
      * @param content Message text content
      */
     void sendTextMessage(const QString& peerId, const QString& content);
+    void sendGroupTextMessage(const QString& groupId,
+                              const QStringList& memberIds,
+                              const QString& content);
+    void relayGroupTextMessage(const core::Message& originalMessage,
+                               const QStringList& relayTargets);
     void sendImageMessage(const QString& peerId, const QString& filePath);
     void sendFileMessage(const QString& peerId, const QString& filePath);
     
@@ -53,6 +58,14 @@ public:
      * @return List of messages (sorted by timestamp)
      */
     QList<core::Message> getMessageHistory(const QString& peerId) const;
+    QList<core::Message> getLatestMessages(const QString& peerId, int limit) const;
+    QList<core::Message> getMessagesBefore(const QString& peerId,
+                                           const QDateTime& before,
+                                           int limit) const;
+    QList<core::Message> getLatestGroupMessages(const QString& groupId, int limit) const;
+    QList<core::Message> getGroupMessagesBefore(const QString& groupId,
+                                                const QDateTime& before,
+                                                int limit) const;
     
     /**
      * @brief Clear message history with a peer

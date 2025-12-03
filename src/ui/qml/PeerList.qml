@@ -13,7 +13,6 @@
 import QtQuick 2.12
 import QtQuick.Controls 2.5
 import QtQuick.Layouts 1.12
-import QtQuick.Dialogs 1.2
 import "."
 
 Item {
@@ -33,27 +32,48 @@ Item {
         id: avatarLib
     }
 
-    MessageDialog {
+    // 删除会话确认对话框：使用 QtQuick.Controls 2 的 Dialog，避免依赖 QtQuick.Dialogs
+    Dialog {
         id: deleteSessionDialog
+        modal: true
         title: qsTr("删除会话")
-        text: qsTr("确定要删除与 %1 的会话并清空聊天记录吗？").arg(peerList.pendingDeleteUserName)
-        standardButtons: StandardButton.Ok | StandardButton.Cancel
 
-        onAccepted: {
-            if (viewModel && peerList.pendingDeleteUserId !== "") {
-                viewModel.deleteSession(peerList.pendingDeleteUserId)
-            }
-            if (typeof chatViewModel !== "undefined" && chatViewModel
-                    && peerList.pendingDeleteUserId !== "") {
-                chatViewModel.deleteConversation(peerList.pendingDeleteUserId)
-            }
-            peerList.pendingDeleteUserId = ""
-            peerList.pendingDeleteUserName = ""
-        }
+        contentItem: ColumnLayout {
+            spacing: Style.spacingMedium
 
-        onRejected: {
-            peerList.pendingDeleteUserId = ""
-            peerList.pendingDeleteUserName = ""
+            Label {
+                text: qsTr("确定要删除与 %1 的会话并清空聊天记录吗？").arg(peerList.pendingDeleteUserName)
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+
+                Button {
+                    text: qsTr("取消")
+                    onClicked: {
+                        peerList.pendingDeleteUserId = ""
+                        peerList.pendingDeleteUserName = ""
+                        deleteSessionDialog.close()
+                    }
+                }
+
+                Button {
+                    text: qsTr("确定")
+                    onClicked: {
+                        if (viewModel && peerList.pendingDeleteUserId !== "") {
+                            viewModel.deleteSession(peerList.pendingDeleteUserId)
+                        }
+                        if (typeof chatViewModel !== "undefined" && chatViewModel
+                                && peerList.pendingDeleteUserId !== "") {
+                            chatViewModel.deleteConversation(peerList.pendingDeleteUserId)
+                        }
+                        peerList.pendingDeleteUserId = ""
+                        peerList.pendingDeleteUserName = ""
+                        deleteSessionDialog.close()
+                    }
+                }
+            }
         }
     }
 

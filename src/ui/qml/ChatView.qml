@@ -2,14 +2,10 @@
  * 聊天视图组件 (QML)
  */
 
-/**
- * 聊天视图组件 (QML)
- */
-
 import QtQuick 2.12
 import QtQuick.Controls 2.5
 import QtQuick.Layouts 1.12
-import QtQuick.Dialogs 1.2
+import QtQuick.Dialogs
 import Qt.labs.settings 1.1
 import "."
 
@@ -537,6 +533,38 @@ Item {
                 if (pendingScrollMessageId && pendingScrollMessageId !== "")
                     return
                 Qt.callLater(function() { positionViewAtEnd() })
+            }
+
+            onMovementEnded: {
+                if (!viewModel)
+                    return
+                if (!atYBeginning)
+                    return
+                if (pendingScrollMessageId && pendingScrollMessageId !== "")
+                    return
+
+                var oldestId = viewModel.getOldestMessageId ? viewModel.getOldestMessageId() : ""
+                if (!oldestId || oldestId === "")
+                    return
+
+                pendingScrollMessageId = oldestId
+                if (viewModel.loadMoreHistory)
+                    viewModel.loadMoreHistory()
+            }
+
+            header: Item {
+                width: messageList.width
+                height: hintLabel.implicitHeight + Style.spacingSmall * 2
+                visible: viewModel && messageList.count > 0
+                         && !viewModel.hasMoreHistory
+
+                Label {
+                    id: hintLabel
+                    anchors.centerIn: parent
+                    text: qsTr("已到最早的消息")
+                    font: Style.fontCaption
+                    color: Style.textSecondary
+                }
             }
 
             delegate: Item {

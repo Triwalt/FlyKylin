@@ -29,6 +29,20 @@ public:
     QList<core::Message> loadMessages(const QString& localUserId, const QString& peerId) const;
     void appendMessage(const core::Message& message, const QString& localUserId);
     void clearHistory(const QString& localUserId, const QString& peerId);
+    QList<core::Message> loadLatestMessages(const QString& localUserId,
+                                            const QString& peerId,
+                                            int limit) const;
+    QList<core::Message> loadMessagesBefore(const QString& localUserId,
+                                            const QString& peerId,
+                                            qint64 beforeTimestamp,
+                                            int limit) const;
+    QList<core::Message> loadLatestGroupMessages(const QString& localUserId,
+                                                 const QString& groupId,
+                                                 int limit) const;
+    QList<core::Message> loadGroupMessagesBefore(const QString& localUserId,
+                                                 const QString& groupId,
+                                                 qint64 beforeTimestamp,
+                                                 int limit) const;
 
     // Load messages for semantic search. If peerId is empty, load across all peers.
     QList<core::Message> loadMessagesForSearch(const QString& localUserId,

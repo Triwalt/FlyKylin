@@ -12,6 +12,7 @@
 #include <QString>
 #include <QStringList>
 #include <QList>
+#include <QHash>
 #include "core/models/Message.h"
 #include "core/services/MessageService.h"
 
@@ -31,6 +32,7 @@ class ChatViewModel : public QObject {
     Q_OBJECT
     Q_PROPERTY(QStandardItemModel* messageModel READ messageModel CONSTANT)
     Q_PROPERTY(QString currentPeerName READ getCurrentPeerName NOTIFY peerChanged)
+    Q_PROPERTY(bool hasMoreHistory READ hasMoreHistory NOTIFY messagesUpdated)
     
 public:
     explicit ChatViewModel(QObject* parent = nullptr);
@@ -90,10 +92,15 @@ public:
 
     Q_INVOKABLE bool isGroupChat() const { return m_isGroupChat; }
     Q_INVOKABLE QString getCurrentGroupId() const { return m_currentGroupId; }
+    Q_INVOKABLE bool hasMoreHistory() const { return m_hasMoreHistory; }
 
     Q_INVOKABLE bool isImageNsfw(const QString& filePath) const;
 
     Q_INVOKABLE void resetConversation();
+    Q_INVOKABLE void loadMoreHistory();
+    Q_INVOKABLE QString getOldestMessageId() const {
+        return m_messages.isEmpty() ? QString() : m_messages.first().id();
+    }
     
     /**
      * @brief Clear chat history with current peer
@@ -104,6 +111,10 @@ public:
      * @brief Refresh message list from service
      */
     void refreshMessages();
+
+    Q_INVOKABLE void registerGroup(const QString& groupId,
+                                   const QStringList& memberIds,
+                                   const QString& ownerId);
     
 signals:
     /**
@@ -141,6 +152,16 @@ signals:
      */
     void messageFailed(const flykylin::core::Message& message, QString error);
     
+    /**
+     * @brief Discovered a group message (used for auto-joining groups across devices)
+     * @param groupId Group identifier carried by the message
+     * @param fromUserId Sender user ID
+     * @param toUserId Receiver user ID
+     */
+    void groupMessageDiscovered(const QString& groupId,
+                                const QString& fromUserId,
+                                const QString& toUserId);
+    
 private slots:
     void onMessageReceived(const flykylin::core::Message& message);
     void onMessageSent(const flykylin::core::Message& message);
@@ -159,6 +180,13 @@ private:
     QStringList m_groupMembers; ///< Member user IDs in current group
     QList<core::Message> m_messages;  ///< Message list for current peer or group
     QStandardItemModel* m_messageModel; ///< Model for QML
+    bool m_hasMoreHistory{false};
+
+    struct GroupMeta {
+        QString ownerId;
+        QStringList members;
+    };
+    QHash<QString, GroupMeta> m_groupMeta;
 };
 
 } // namespace ui

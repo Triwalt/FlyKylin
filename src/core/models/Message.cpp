@@ -50,7 +50,9 @@ bool Message::operator==(const Message& other) const
            m_attachmentSize == other.m_attachmentSize &&
            m_mimeType == other.m_mimeType &&
            m_nsfwChecked == other.m_nsfwChecked &&
-           m_nsfwPassed == other.m_nsfwPassed;
+           m_nsfwPassed == other.m_nsfwPassed &&
+           m_isGroup == other.m_isGroup &&
+           m_groupId == other.m_groupId;
 }
 
 bool Message::operator!=(const Message& other) const

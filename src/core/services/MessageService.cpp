@@ -105,6 +105,108 @@ void MessageService::sendTextMessage(const QString& peerId, const QString& conte
             << "id=" << message.id() << "content:" << content.left(20) << "...";
 }
 
+void MessageService::sendGroupTextMessage(const QString& groupId,
+                                          const QStringList& memberIds,
+                                          const QString& content)
+{
+    if (groupId.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group message: empty groupId";
+        return;
+    }
+
+    if (memberIds.isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group message: no members for" << groupId;
+        return;
+    }
+
+    if (content.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot send empty group message";
+        return;
+    }
+
+    // Generate a single logical message ID for this group message. All
+    // per-recipient TCP sends for this logical message will share the same
+    // ID so that the chat history and UI only contain one entry per
+    // outbound group message on the sender side.
+    const QString groupMessageId = core::Message::generateMessageId();
+
+    for (const QString& peerId : memberIds) {
+        if (peerId == LocalEchoService::getEchoBotId()) {
+            continue;
+        }
+
+        qInfo() << "[MessageService] Sending group message to" << peerId << "group" << groupId;
+
+        core::Message message;
+        message.setId(groupMessageId);
+        message.setFromUserId(m_localUserId);
+        message.setToUserId(peerId);
+        message.setContent(content);
+        message.setTimestamp(QDateTime::currentDateTime());
+        message.setStatus(core::MessageStatus::Sending);
+        message.setIsGroup(true);
+        message.setGroupId(groupId);
+
+        QByteArray data = serializeTextMessage(message);
+        if (data.isEmpty()) {
+            qCritical() << "[MessageService] Failed to serialize group message for" << peerId;
+            message.setStatus(core::MessageStatus::Failed);
+            emit messageFailed(message, QStringLiteral("Serialization failed"));
+            continue;
+        }
+
+        m_pendingMessages[qMakePair(peerId, 0ULL)] = message;
+
+        m_connectionManager->sendMessage(peerId,
+                                         data,
+                                         communication::MessageQueue::Priority::High);
+
+        qInfo() << "[MessageService] Group message queued for" << peerId
+                << "group" << groupId << "id=" << message.id()
+                << "content:" << content.left(20) << "...";
+    }
+}
+
+void MessageService::relayGroupTextMessage(const core::Message& originalMessage,
+                                           const QStringList& relayTargets)
+{
+    if (!originalMessage.isGroup() || originalMessage.groupId().trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot relay non-group or empty-groupId message";
+        return;
+    }
+
+    if (relayTargets.isEmpty()) {
+        return;
+    }
+
+    for (const QString& peerId : relayTargets) {
+        if (peerId.isEmpty()) {
+            continue;
+        }
+        if (peerId == LocalEchoService::getEchoBotId()) {
+            continue;
+        }
+
+        core::Message message = originalMessage;
+        message.setToUserId(peerId);
+        message.setStatus(core::MessageStatus::Sending);
+
+        QByteArray data = serializeTextMessage(message);
+        if (data.isEmpty()) {
+            qCritical() << "[MessageService] Failed to serialize relayed group message for"
+                        << peerId;
+            continue;
+        }
+
+        m_connectionManager->sendMessage(peerId,
+                                         data,
+                                         communication::MessageQueue::Priority::High);
+
+        qInfo() << "[MessageService] Relayed group message" << message.id() << "for group"
+                << message.groupId() << "to" << peerId;
+    }
+}
+
 void MessageService::sendImageMessage(const QString& peerId, const QString& filePath) {
     if (peerId == LocalEchoService::getEchoBotId()) {
         qInfo() << "[MessageService] File/image sending to Echo Bot is not supported";
@@ -143,6 +245,54 @@ QList<core::Message> MessageService::getMessageHistory(const QString& peerId) co
     }
 
     return m_messageHistory.value(peerId, QList<core::Message>());
+}
+
+QList<core::Message> MessageService::getLatestMessages(const QString& peerId, int limit) const {
+    if (peerId.isEmpty()) {
+        return QList<core::Message>();
+    }
+
+    return DatabaseService::instance()->loadLatestMessages(m_localUserId, peerId, limit);
+}
+
+QList<core::Message> MessageService::getMessagesBefore(const QString& peerId,
+                                                       const QDateTime& before,
+                                                       int limit) const
+{
+    if (peerId.isEmpty() || !before.isValid()) {
+        return QList<core::Message>();
+    }
+
+    return DatabaseService::instance()->loadMessagesBefore(
+        m_localUserId,
+        peerId,
+        before.toMSecsSinceEpoch(),
+        limit);
+}
+
+QList<core::Message> MessageService::getLatestGroupMessages(const QString& groupId,
+                                                            int limit) const
+{
+    if (groupId.isEmpty()) {
+        return QList<core::Message>();
+    }
+
+    return DatabaseService::instance()->loadLatestGroupMessages(m_localUserId, groupId, limit);
+}
+
+QList<core::Message> MessageService::getGroupMessagesBefore(const QString& groupId,
+                                                            const QDateTime& before,
+                                                            int limit) const
+{
+    if (groupId.isEmpty() || !before.isValid()) {
+        return QList<core::Message>();
+    }
+
+    return DatabaseService::instance()->loadGroupMessagesBefore(
+        m_localUserId,
+        groupId,
+        before.toMSecsSinceEpoch(),
+        limit);
 }
 
 void MessageService::clearHistory(const QString& peerId) {
@@ -222,7 +372,10 @@ QByteArray MessageService::serializeTextMessage(const core::Message& message) {
     textMsg.set_to_user_id(message.toUserId().toStdString());
     textMsg.set_content(message.content().toStdString());
     textMsg.set_timestamp(message.timestamp().toMSecsSinceEpoch());
-    textMsg.set_is_group(false);  // Currently only support 1v1
+    textMsg.set_is_group(message.isGroup());
+    if (message.isGroup() && !message.groupId().isEmpty()) {
+        textMsg.add_group_ids(message.groupId().toStdString());
+    }
 
     // Serialize TextMessage to payload
     std::string payload;
@@ -283,6 +436,11 @@ core::Message MessageService::parseTextMessage(const QString& peerId, const QByt
     message.setTimestamp(QDateTime::fromMSecsSinceEpoch(textMsg.timestamp()));
     message.setStatus(core::MessageStatus::Delivered);
 
+    message.setIsGroup(textMsg.is_group());
+    if (textMsg.group_ids_size() > 0) {
+        message.setGroupId(QString::fromStdString(textMsg.group_ids(0)));
+    }
+
     qDebug() << "[MessageService] Parsed message id=" << message.id()
              << "from=" << message.fromUserId() << "to=" << message.toUserId();
 
@@ -290,17 +448,22 @@ core::Message MessageService::parseTextMessage(const QString& peerId, const QByt
 }
 
 void MessageService::storeMessage(const core::Message& message) {
-    QString peerId = (message.fromUserId() == m_localUserId) 
-                     ? message.toUserId() 
+    QString peerId;
+    if (message.isGroup() && !message.groupId().isEmpty()) {
+        peerId = message.groupId();
+    } else {
+        peerId = (message.fromUserId() == m_localUserId)
+                     ? message.toUserId()
                      : message.fromUserId();
-    
+    }
+
     m_messageHistory[peerId].append(message);
     DatabaseService::instance()->appendMessage(message, m_localUserId);
     DatabaseService::instance()->touchSession(m_localUserId,
                                               peerId,
                                               message.timestamp().toMSecsSinceEpoch());
-    
-    qDebug() << "[MessageService] Stored message, history size for" << peerId 
+
+    qDebug() << "[MessageService] Stored message, history size for" << peerId
              << "=" << m_messageHistory[peerId].size();
 }
 
@@ -314,9 +477,11 @@ core::Message* MessageService::findPendingMessage(const QString& peerId, quint64
     // Also try with temporary ID (0)
     auto tempKey = qMakePair(peerId, 0ULL);
     if (m_pendingMessages.contains(tempKey)) {
-        // Update with real message ID
+        // Promote the pending entry to use the real TCP sequence number as
+        // map key, but keep the application-level message ID unchanged so
+        // that all per-recipient sends for a logical group message share
+        // the same ID.
         core::Message msg = m_pendingMessages.take(tempKey);
-        msg.setId(QString::number(messageId));
         m_pendingMessages[key] = msg;
         return &m_pendingMessages[key];
     }

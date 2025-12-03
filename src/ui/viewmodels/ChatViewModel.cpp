@@ -111,6 +111,49 @@ ChatViewModel::~ChatViewModel() {
     qInfo() << "[ChatViewModel] Destroyed";
 }
 
+void ChatViewModel::registerGroup(const QString& groupId,
+                                  const QStringList& memberIds,
+                                  const QString& ownerId)
+{
+    if (groupId.isEmpty()) {
+        qWarning() << "[ChatViewModel] registerGroup: empty groupId";
+        return;
+    }
+
+    QStringList normalizedMembers;
+    normalizedMembers.reserve(memberIds.size());
+    for (const QString& m : memberIds) {
+        if (m.isEmpty()) {
+            continue;
+        }
+        if (!normalizedMembers.contains(m)) {
+            normalizedMembers.append(m);
+        }
+    }
+
+    GroupMeta meta = m_groupMeta.value(groupId);
+
+    if (!ownerId.isEmpty()) {
+        if (meta.ownerId.isEmpty()) {
+            meta.ownerId = ownerId;
+        } else if (meta.ownerId != ownerId) {
+            qWarning() << "[ChatViewModel] registerGroup: ownerId mismatch for group"
+                       << groupId << "existing" << meta.ownerId << "new" << ownerId;
+        }
+    }
+
+    for (const QString& m : normalizedMembers) {
+        if (!meta.members.contains(m)) {
+            meta.members.append(m);
+        }
+    }
+
+    m_groupMeta.insert(groupId, meta);
+
+    qInfo() << "[ChatViewModel] Registered group" << groupId << "owner=" << meta.ownerId
+            << "members=" << meta.members;
+}
+
 void ChatViewModel::setCurrentPeer(const QString& peerId, const QString& peerName) {
     const bool samePeer = (m_currentPeerId == peerId);
 
@@ -143,15 +186,64 @@ void ChatViewModel::setCurrentGroup(const QString& groupId,
     QStringList effectiveMembers = memberIds;
 
     if (effectiveMembers.isEmpty()) {
-        if (m_isGroupChat && groupId == m_currentGroupId && !m_groupMembers.isEmpty()) {
+        auto metaIt = m_groupMeta.constFind(groupId);
+        if (metaIt != m_groupMeta.constEnd() && !metaIt->members.isEmpty()) {
+            const GroupMeta& meta = metaIt.value();
+            effectiveMembers = meta.members;
+            qInfo() << "[ChatViewModel] setCurrentGroup: using registered group meta for"
+                    << groupId << "members=" << effectiveMembers;
+        } else if (m_isGroupChat && groupId == m_currentGroupId && !m_groupMembers.isEmpty()) {
             qWarning() << "[ChatViewModel] setCurrentGroup: empty memberIds for existing group"
                        << groupId << ", reusing previous members" << m_groupMembers;
             effectiveMembers = m_groupMembers;
         } else {
-            qWarning() << "[ChatViewModel] setCurrentGroup: group" << groupId
-                       << "has no members yet, opening empty group view";
+            constexpr int kProbeSize = 50;
+            QList<core::Message> recent =
+                m_messageService->getLatestGroupMessages(groupId, kProbeSize);
+
+            const QString localUserId = core::UserProfile::instance().userId();
+            QStringList derivedMembers;
+            for (const auto& msg : recent) {
+                if (!msg.isGroup() || msg.groupId() != groupId) {
+                    continue;
+                }
+
+                const QString fromId = msg.fromUserId();
+                const QString toId = msg.toUserId();
+
+                if (!fromId.isEmpty() && fromId != localUserId && !derivedMembers.contains(fromId)) {
+                    derivedMembers.append(fromId);
+                }
+
+                if (!toId.isEmpty() && toId != localUserId && !derivedMembers.contains(toId)) {
+                    derivedMembers.append(toId);
+                }
+            }
+
+            effectiveMembers = derivedMembers;
+
+            if (effectiveMembers.isEmpty()) {
+                qWarning() << "[ChatViewModel] setCurrentGroup: group" << groupId
+                           << "has no members yet, opening empty group view";
+            } else {
+                qWarning() << "[ChatViewModel] setCurrentGroup: reconstructed members for group"
+                           << groupId << "from history" << effectiveMembers;
+            }
         }
     }
+
+    const QString localUserId = core::UserProfile::instance().userId();
+    QStringList filteredMembers;
+    filteredMembers.reserve(effectiveMembers.size());
+    for (const QString& m : effectiveMembers) {
+        if (m.isEmpty() || m == localUserId) {
+            continue;
+        }
+        if (!filteredMembers.contains(m)) {
+            filteredMembers.append(m);
+        }
+    }
+    effectiveMembers = filteredMembers;
 
     qInfo() << "[ChatViewModel] Switching to group" << groupId << "(" << groupName
             << ") members=" << effectiveMembers;
@@ -164,17 +256,12 @@ void ChatViewModel::setCurrentGroup(const QString& groupId,
 
     m_messages.clear();
 
-    for (const auto& memberId : m_groupMembers) {
-        const QList<core::Message> history = m_messageService->getMessageHistory(memberId);
-        for (const auto& msg : history) {
-            m_messages.append(msg);
-        }
-    }
+    constexpr int kPageSize = 20;
+    m_messages = m_messageService->getLatestGroupMessages(m_currentGroupId, kPageSize);
+    m_hasMoreHistory = (m_messages.size() == kPageSize);
 
-    std::sort(m_messages.begin(), m_messages.end(),
-              [](const core::Message& a, const core::Message& b) {
-                  return a.timestamp() < b.timestamp();
-              });
+    qInfo() << "[ChatViewModel] Loaded" << m_messages.size() << "latest group messages for"
+            << m_currentGroupId;
 
     rebuildMessageModel();
     emit messagesUpdated();
@@ -185,6 +272,12 @@ void ChatViewModel::sendMessage(const QString& content) {
     if (!m_isGroupChat && m_currentPeerId.isEmpty()) {
         qWarning() << "[ChatViewModel] Cannot send message: no peer selected";
         return;
+    }
+
+    if (m_isGroupChat && m_groupMembers.isEmpty() && !m_currentGroupId.isEmpty()) {
+        qWarning() << "[ChatViewModel] Group members empty for" << m_currentGroupId
+                   << ", attempting reconstruction from history";
+        setCurrentGroup(m_currentGroupId, m_currentPeerName, QStringList());
     }
 
     if (m_isGroupChat && m_groupMembers.isEmpty()) {
@@ -201,10 +294,52 @@ void ChatViewModel::sendMessage(const QString& content) {
         qInfo() << "[ChatViewModel] Sending message to" << m_currentPeerId;
         m_messageService->sendTextMessage(m_currentPeerId, content);
     } else {
-        qInfo() << "[ChatViewModel] Sending group message to members of" << m_currentGroupId;
-        for (const auto& memberId : m_groupMembers) {
-            m_messageService->sendTextMessage(memberId, content);
+        if (m_currentGroupId.isEmpty()) {
+            qWarning() << "[ChatViewModel] Cannot send group message: empty group id";
+            return;
         }
+
+        QStringList targets = m_groupMembers;
+
+        auto it = m_groupMeta.constFind(m_currentGroupId);
+        if (it != m_groupMeta.constEnd()) {
+            const GroupMeta& meta = it.value();
+            const QString localUserId = core::UserProfile::instance().userId();
+
+            if (!meta.ownerId.isEmpty()) {
+                if (meta.ownerId == localUserId) {
+                    QStringList ownerTargets;
+                    ownerTargets.reserve(meta.members.size());
+                    for (const QString& m : meta.members) {
+                        if (m.isEmpty() || m == localUserId) {
+                            continue;
+                        }
+                        if (!ownerTargets.contains(m)) {
+                            ownerTargets.append(m);
+                        }
+                    }
+                    if (!ownerTargets.isEmpty()) {
+                        targets = ownerTargets;
+                    }
+                } else {
+                    if (meta.members.contains(meta.ownerId)) {
+                        targets = QStringList{meta.ownerId};
+                    } else {
+                        targets.clear();
+                    }
+                }
+            }
+        }
+
+        if (targets.isEmpty()) {
+            qWarning() << "[ChatViewModel] Cannot send group message: no targets for group"
+                       << m_currentGroupId;
+            return;
+        }
+
+        qInfo() << "[ChatViewModel] Sending group message for" << m_currentGroupId
+                << "targets=" << targets;
+        m_messageService->sendGroupTextMessage(m_currentGroupId, targets, content);
     }
 }
 
@@ -523,6 +658,53 @@ void ChatViewModel::refreshMessages() {
 void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
     QString peerId = message.fromUserId();
 
+    // Notify QML about any group message so that it can auto-join/create
+    // the corresponding group on this device, even if the group chat is
+    // not currently open.
+    if (message.isGroup() && !message.groupId().isEmpty()) {
+        emit groupMessageDiscovered(message.groupId(),
+                                    message.fromUserId(),
+                                    message.toUserId());
+
+        const QString groupId = message.groupId();
+        const QString localUserId = core::UserProfile::instance().userId();
+
+        auto it = m_groupMeta.constFind(groupId);
+        if (it != m_groupMeta.constEnd()) {
+            const GroupMeta& meta = it.value();
+
+            if (!meta.ownerId.isEmpty() && meta.ownerId == localUserId &&
+                message.fromUserId() != localUserId) {
+
+                QStringList relayTargets;
+                for (const QString& memberId : meta.members) {
+                    if (memberId.isEmpty()) {
+                        continue;
+                    }
+                    if (memberId == localUserId) {
+                        continue;
+                    }
+                    if (memberId == message.fromUserId()) {
+                        continue;
+                    }
+                    if (memberId == message.toUserId()) {
+                        continue;
+                    }
+                    if (!relayTargets.contains(memberId)) {
+                        relayTargets.append(memberId);
+                    }
+                }
+
+                if (!relayTargets.isEmpty()) {
+                    qInfo() << "[ChatViewModel] Relaying group message" << message.id()
+                            << "for group" << groupId << "from" << message.fromUserId()
+                            << "to" << relayTargets;
+                    m_messageService->relayGroupTextMessage(message, relayTargets);
+                }
+            }
+        }
+    }
+
     if (!m_isGroupChat) {
         if (peerId != m_currentPeerId) {
             qDebug() << "[ChatViewModel] Received message from" << peerId
@@ -537,7 +719,8 @@ void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
         emit messageReceived(message);
         emit messagesUpdated();
     } else {
-        if (!m_groupMembers.contains(peerId)) {
+        if (!message.isGroup() || message.groupId().isEmpty() ||
+            message.groupId() != m_currentGroupId) {
             return;
         }
 
@@ -583,7 +766,8 @@ void ChatViewModel::onMessageSent(const flykylin::core::Message& message) {
         emit messageSent(message);
         emit messagesUpdated();
     } else {
-        if (!m_groupMembers.contains(peerId)) {
+        if (!message.isGroup() || message.groupId().isEmpty() ||
+            message.groupId() != m_currentGroupId) {
             return;
         }
 
@@ -636,7 +820,8 @@ void ChatViewModel::onMessageFailed(const flykylin::core::Message& message, cons
         emit messageFailed(message, error);
         emit messagesUpdated();
     } else {
-        if (!m_groupMembers.contains(peerId)) {
+        if (!message.isGroup() || message.groupId().isEmpty() ||
+            message.groupId() != m_currentGroupId) {
             return;
         }
 
@@ -662,10 +847,77 @@ void ChatViewModel::onMessageFailed(const flykylin::core::Message& message, cons
 }
 
 void ChatViewModel::loadMessagesFromService() {
-    m_messages = m_messageService->getMessageHistory(m_currentPeerId);
-    
-    qInfo() << "[ChatViewModel] Loaded" << m_messages.size() << "messages for" << m_currentPeerId;
-    
+    constexpr int kPageSize = 20;
+
+    if (m_currentPeerId.isEmpty()) {
+        m_messages.clear();
+        m_hasMoreHistory = false;
+        rebuildMessageModel();
+        emit messagesUpdated();
+        return;
+    }
+
+    m_messages = m_messageService->getLatestMessages(m_currentPeerId, kPageSize);
+    m_hasMoreHistory = (m_messages.size() == kPageSize);
+
+    qInfo() << "[ChatViewModel] Loaded" << m_messages.size() << "latest messages for"
+            << m_currentPeerId;
+
+    rebuildMessageModel();
+    emit messagesUpdated();
+}
+
+void ChatViewModel::loadMoreHistory() {
+    constexpr int kPageSize = 20;
+
+    if (!m_hasMoreHistory || m_messages.isEmpty()) {
+        return;
+    }
+
+    const QDateTime oldestTs = m_messages.first().timestamp();
+    if (!oldestTs.isValid()) {
+        return;
+    }
+
+    QList<core::Message> older;
+    if (m_isGroupChat) {
+        if (m_currentGroupId.isEmpty()) {
+            return;
+        }
+
+        older = m_messageService->getGroupMessagesBefore(m_currentGroupId, oldestTs, kPageSize);
+    } else {
+        if (m_currentPeerId.isEmpty()) {
+            return;
+        }
+
+        older = m_messageService->getMessagesBefore(m_currentPeerId, oldestTs, kPageSize);
+    }
+
+    if (older.isEmpty()) {
+        m_hasMoreHistory = false;
+        // Model unchanged, but notify view so it can clear any pending scroll state.
+        emit messagesUpdated();
+        return;
+    }
+
+    if (older.size() < kPageSize) {
+        m_hasMoreHistory = false;
+    }
+
+    // Prepend older messages to the front while preserving order.
+    QList<core::Message> combined = older;
+    combined.append(m_messages);
+    m_messages = combined;
+
+    if (m_isGroupChat) {
+        qInfo() << "[ChatViewModel] Loaded" << older.size() << "older group messages for"
+                << m_currentGroupId << "total now" << m_messages.size();
+    } else {
+        qInfo() << "[ChatViewModel] Loaded" << older.size() << "older messages for"
+                << m_currentPeerId << "total now" << m_messages.size();
+    }
+
     rebuildMessageModel();
     emit messagesUpdated();
 }
@@ -679,6 +931,7 @@ void ChatViewModel::resetConversation() {
     m_currentPeerId.clear();
     m_currentPeerName.clear();
     m_messages.clear();
+    m_hasMoreHistory = false;
 
     rebuildMessageModel();
     emit messagesUpdated();

@@ -87,7 +87,7 @@ bool DatabaseService::init() {
     QSqlQuery query(m_db);
     if (!query.exec(
             "CREATE TABLE IF NOT EXISTS messages ("
-            "id TEXT PRIMARY KEY,"
+            "id TEXT NOT NULL,"
             "local_user_id TEXT NOT NULL,"
             "peer_id TEXT NOT NULL,"
             "from_id TEXT NOT NULL,"
@@ -100,10 +100,98 @@ bool DatabaseService::init() {
             "attachment_path TEXT,"
             "attachment_name TEXT,"
             "attachment_size INTEGER,"
-            "mime_type TEXT"
+            "mime_type TEXT,"
+            "is_group INTEGER NOT NULL DEFAULT 0,"
+            "group_id TEXT,"
+            "PRIMARY KEY(id, local_user_id)"
             ")")) {
         qCritical() << "[DatabaseService] Failed to create messages table:" << query.lastError().text();
         return false;
+    }
+
+    bool hasIsGroup = false;
+    bool hasGroupId = false;
+    bool pkHasLocalUserId = false;
+    int pkColumnCount = 0;
+    if (query.exec("PRAGMA table_info(messages)")) {
+        while (query.next()) {
+            const QString name = query.value(1).toString();
+            const int pkPos = query.value(5).toInt();
+            if (name == QLatin1String("is_group")) {
+                hasIsGroup = true;
+            } else if (name == QLatin1String("group_id")) {
+                hasGroupId = true;
+            }
+            if (pkPos > 0) {
+                ++pkColumnCount;
+                if (name == QLatin1String("local_user_id")) {
+                    pkHasLocalUserId = true;
+                }
+            }
+        }
+    }
+
+    if (!hasIsGroup) {
+        if (!query.exec("ALTER TABLE messages ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0")) {
+            qWarning() << "[DatabaseService] Failed to add is_group column:" << query.lastError().text();
+        }
+    }
+
+    if (!hasGroupId) {
+        if (!query.exec("ALTER TABLE messages ADD COLUMN group_id TEXT")) {
+            qWarning() << "[DatabaseService] Failed to add group_id column:" << query.lastError().text();
+        }
+    }
+
+    const bool needPkMigration = (!pkHasLocalUserId || pkColumnCount == 1);
+    if (needPkMigration) {
+        qInfo() << "[DatabaseService] Migrating messages primary key to (id, local_user_id)";
+
+        if (!query.exec("ALTER TABLE messages RENAME TO messages_old")) {
+            qCritical() << "[DatabaseService] Failed to rename messages table for migration:"
+                        << query.lastError().text();
+            return false;
+        }
+
+        if (!query.exec(
+                "CREATE TABLE messages ("
+                "id TEXT NOT NULL,"
+                "local_user_id TEXT NOT NULL,"
+                "peer_id TEXT NOT NULL,"
+                "from_id TEXT NOT NULL,"
+                "to_id TEXT NOT NULL,"
+                "content TEXT,"
+                "timestamp INTEGER NOT NULL,"
+                "status INTEGER NOT NULL,"
+                "kind INTEGER NOT NULL,"
+                "is_read INTEGER NOT NULL,"
+                "attachment_path TEXT,"
+                "attachment_name TEXT,"
+                "attachment_size INTEGER,"
+                "mime_type TEXT,"
+                "is_group INTEGER NOT NULL DEFAULT 0,"
+                "group_id TEXT,"
+                "PRIMARY KEY(id, local_user_id)"
+                ")")) {
+            qCritical() << "[DatabaseService] Failed to create migrated messages table:"
+                        << query.lastError().text();
+            return false;
+        }
+
+        if (!query.exec(
+                "INSERT INTO messages (id, local_user_id, peer_id, from_id, to_id, content, timestamp, status, kind, "
+                "is_read, attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id) "
+                "SELECT id, local_user_id, peer_id, from_id, to_id, content, timestamp, status, kind, "
+                "is_read, attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
+                "FROM messages_old")) {
+            qCritical() << "[DatabaseService] Failed to copy data to migrated messages table:"
+                        << query.lastError().text();
+            return false;
+        }
+
+        if (!query.exec("DROP TABLE messages_old")) {
+            qWarning() << "[DatabaseService] Failed to drop old messages table:" << query.lastError().text();
+        }
     }
 
     if (!query.exec(
@@ -164,7 +252,7 @@ QList<core::Message> DatabaseService::loadMessages(const QString& localUserId, c
     QSqlQuery query(m_db);
     query.prepare(
         "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
-        "attachment_path, attachment_name, attachment_size, mime_type "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
         "FROM messages "
         "WHERE local_user_id = :local_user_id AND peer_id = :peer_id "
         "ORDER BY timestamp ASC, rowid ASC");
@@ -207,10 +295,328 @@ QList<core::Message> DatabaseService::loadMessages(const QString& localUserId, c
         message.setAttachmentSize(query.value(10).toULongLong());
         message.setMimeType(query.value(11).toString());
 
+        const bool isGroup = query.value(12).toInt() != 0;
+        message.setIsGroup(isGroup);
+        message.setGroupId(query.value(13).toString());
+
         result.append(message);
     }
 
     qInfo() << "[DatabaseService] Loaded" << result.size() << "messages for" << localUserId << peerId;
+
+    return result;
+}
+
+QList<core::Message> DatabaseService::loadLatestMessages(const QString& localUserId,
+                                                         const QString& peerId,
+                                                         int limit) const
+{
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    if (peerId.isEmpty()) {
+        return result;
+    }
+
+    const int effectiveLimit = (limit > 0) ? limit : 200;
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id AND peer_id = :peer_id AND is_group = 0 "
+        "ORDER BY timestamp DESC, rowid DESC LIMIT :limit");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":peer_id", peerId);
+    query.bindValue(":limit", effectiveLimit);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load latest messages for" << localUserId
+                   << peerId << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        const bool isGroup = query.value(12).toInt() != 0;
+        message.setIsGroup(isGroup);
+        message.setGroupId(query.value(13).toString());
+
+        // We are iterating in DESC order; prepend so that result is ASC.
+        result.prepend(message);
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "latest messages for" << localUserId
+            << peerId;
+
+    return result;
+}
+
+QList<core::Message> DatabaseService::loadMessagesBefore(const QString& localUserId,
+                                                         const QString& peerId,
+                                                         qint64 beforeTimestamp,
+                                                         int limit) const
+{
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    if (peerId.isEmpty() || beforeTimestamp <= 0) {
+        return result;
+    }
+
+    const int effectiveLimit = (limit > 0) ? limit : 200;
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id AND peer_id = :peer_id AND is_group = 0 "
+        "AND timestamp < :before_ts "
+        "ORDER BY timestamp DESC, rowid DESC LIMIT :limit");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":peer_id", peerId);
+    query.bindValue(":before_ts", beforeTimestamp);
+    query.bindValue(":limit", effectiveLimit);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load older messages for" << localUserId
+                   << peerId << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        const bool isGroup = query.value(12).toInt() != 0;
+        message.setIsGroup(isGroup);
+        message.setGroupId(query.value(13).toString());
+
+        // We are iterating in DESC order; prepend so that result is ASC.
+        result.prepend(message);
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "older messages for" << localUserId
+            << peerId << "before" << beforeTimestamp;
+
+    return result;
+}
+
+QList<core::Message> DatabaseService::loadLatestGroupMessages(const QString& localUserId,
+                                                              const QString& groupId,
+                                                              int limit) const
+{
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    if (groupId.isEmpty()) {
+        return result;
+    }
+
+    const int effectiveLimit = (limit > 0) ? limit : 200;
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id AND is_group = 1 AND group_id = :group_id "
+        "ORDER BY timestamp DESC, rowid DESC LIMIT :limit");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":group_id", groupId);
+    query.bindValue(":limit", effectiveLimit);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load latest group messages for" << localUserId
+                   << groupId << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        const bool isGroup = query.value(12).toInt() != 0;
+        message.setIsGroup(isGroup);
+        message.setGroupId(query.value(13).toString());
+
+        // We are iterating in DESC order; prepend so that result is ASC.
+        result.prepend(message);
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "latest group messages for"
+            << localUserId << groupId;
+
+    return result;
+}
+
+QList<core::Message> DatabaseService::loadGroupMessagesBefore(const QString& localUserId,
+                                                              const QString& groupId,
+                                                              qint64 beforeTimestamp,
+                                                              int limit) const
+{
+    QList<core::Message> result;
+
+    if (!ensureInitialized()) {
+        return result;
+    }
+
+    if (groupId.isEmpty() || beforeTimestamp <= 0) {
+        return result;
+    }
+
+    const int effectiveLimit = (limit > 0) ? limit : 200;
+
+    QSqlQuery query(m_db);
+    query.prepare(
+        "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
+        "FROM messages "
+        "WHERE local_user_id = :local_user_id AND is_group = 1 AND group_id = :group_id "
+        "AND timestamp < :before_ts "
+        "ORDER BY timestamp DESC, rowid DESC LIMIT :limit");
+    query.bindValue(":local_user_id", localUserId);
+    query.bindValue(":group_id", groupId);
+    query.bindValue(":before_ts", beforeTimestamp);
+    query.bindValue(":limit", effectiveLimit);
+
+    if (!query.exec()) {
+        qWarning() << "[DatabaseService] Failed to load older group messages for" << localUserId
+                   << groupId << ":" << query.lastError().text();
+        return result;
+    }
+
+    while (query.next()) {
+        core::Message message;
+        message.setId(query.value(0).toString());
+        message.setFromUserId(query.value(1).toString());
+        message.setToUserId(query.value(2).toString());
+        message.setContent(query.value(3).toString());
+
+        const qint64 ts = query.value(4).toLongLong();
+        message.setTimestamp(QDateTime::fromMSecsSinceEpoch(ts));
+
+        const int statusValue = query.value(5).toInt();
+        if (statusValue >= static_cast<int>(core::MessageStatus::Sending) &&
+            statusValue <= static_cast<int>(core::MessageStatus::Failed)) {
+            message.setStatus(static_cast<core::MessageStatus>(statusValue));
+        }
+
+        const int kindValue = query.value(6).toInt();
+        if (kindValue >= static_cast<int>(core::MessageKind::Text) &&
+            kindValue <= static_cast<int>(core::MessageKind::File)) {
+            message.setKind(static_cast<core::MessageKind>(kindValue));
+        }
+
+        const bool isRead = query.value(7).toInt() != 0;
+        message.setRead(isRead);
+
+        message.setAttachmentLocalPath(query.value(8).toString());
+        message.setAttachmentName(query.value(9).toString());
+        message.setAttachmentSize(query.value(10).toULongLong());
+        message.setMimeType(query.value(11).toString());
+
+        const bool isGroup = query.value(12).toInt() != 0;
+        message.setIsGroup(isGroup);
+        message.setGroupId(query.value(13).toString());
+
+        // We are iterating in DESC order; prepend so that result is ASC.
+        result.prepend(message);
+    }
+
+    qInfo() << "[DatabaseService] Loaded" << result.size() << "older group messages for"
+            << localUserId << groupId << "before" << beforeTimestamp;
 
     return result;
 }
@@ -229,7 +635,7 @@ QList<core::Message> DatabaseService::loadMessagesForSearch(const QString& local
 
     QString sql =
         "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
-        "attachment_path, attachment_name, attachment_size, mime_type "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
         "FROM messages "
         "WHERE local_user_id = :local_user_id ";
 
@@ -283,6 +689,10 @@ QList<core::Message> DatabaseService::loadMessagesForSearch(const QString& local
         message.setAttachmentSize(query.value(10).toULongLong());
         message.setMimeType(query.value(11).toString());
 
+        const bool isGroup = query.value(12).toInt() != 0;
+        message.setIsGroup(isGroup);
+        message.setGroupId(query.value(13).toString());
+
         result.append(message);
     }
 
@@ -311,7 +721,7 @@ QList<core::Message> DatabaseService::searchMessagesByKeyword(const QString& loc
 
     QString sql =
         "SELECT id, from_id, to_id, content, timestamp, status, kind, is_read, "
-        "attachment_path, attachment_name, attachment_size, mime_type "
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id "
         "FROM messages "
         "WHERE local_user_id = :local_user_id AND content LIKE :pattern ";
 
@@ -381,18 +791,23 @@ void DatabaseService::appendMessage(const core::Message& message, const QString&
         return;
     }
 
-    const QString peerId = (message.fromUserId() == localUserId)
-                               ? message.toUserId()
-                               : message.fromUserId();
+    QString peerId;
+    if (message.isGroup() && !message.groupId().isEmpty()) {
+        peerId = message.groupId();
+    } else {
+        peerId = (message.fromUserId() == localUserId)
+                     ? message.toUserId()
+                     : message.fromUserId();
+    }
 
     QSqlQuery query(m_db);
     query.prepare(
         "INSERT OR REPLACE INTO messages ("
         "id, local_user_id, peer_id, from_id, to_id, content, timestamp, status, kind, is_read, "
-        "attachment_path, attachment_name, attachment_size, mime_type"
+        "attachment_path, attachment_name, attachment_size, mime_type, is_group, group_id"
         ") VALUES ("
         ":id, :local_user_id, :peer_id, :from_id, :to_id, :content, :timestamp, :status, :kind, :is_read, "
-        ":attachment_path, :attachment_name, :attachment_size, :mime_type"
+        ":attachment_path, :attachment_name, :attachment_size, :mime_type, :is_group, :group_id"
         ")");
 
     query.bindValue(":id", message.id());
@@ -409,6 +824,8 @@ void DatabaseService::appendMessage(const core::Message& message, const QString&
     query.bindValue(":attachment_name", message.attachmentName());
     query.bindValue(":attachment_size", static_cast<qint64>(message.attachmentSize()));
     query.bindValue(":mime_type", message.mimeType());
+    query.bindValue(":is_group", message.isGroup() ? 1 : 0);
+    query.bindValue(":group_id", message.groupId());
 
     if (!query.exec()) {
         qWarning() << "[DatabaseService] Failed to append message" << message.id()
