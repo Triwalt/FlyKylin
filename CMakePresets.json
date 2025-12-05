@@ -45,7 +45,9 @@
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": ["Windows"]
+          "hostOS": [
+            "Windows"
+          ]
         }
       }
     },
@@ -92,23 +94,25 @@
     },
     {
       "name": "linux-amd64-release",
-      "displayName": "Linux AMD64 Release",
-      "description": "Linux x86_64 Release build with GCC",
-      "inherits": "linux-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BUILD_TESTS": "ON"
-      }
-    },
-    {
-      "name": "linux-arm64-release",
-      "displayName": "Linux ARM64 Release (RK3566)",
-      "description": "Linux ARM64 Release build for RK3566 platform",
+      "displayName": "Linux AMD64 Release (Qt5)",
+      "description": "Linux x86_64 Release build with GCC and Qt5",
       "inherits": "linux-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "BUILD_TESTS": "ON",
-        "RK3566_PLATFORM": "ON"
+        "FLYKYLIN_FORCE_QT5": "ON"
+      }
+    },
+    {
+      "name": "linux-arm64-release",
+      "displayName": "Linux ARM64 Release (RK3566, Qt5)",
+      "description": "Linux ARM64 Release build for RK3566 platform with Qt5",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "ON",
+        "FLYKYLIN_FORCE_RK3566": "ON",
+        "FLYKYLIN_FORCE_QT5": "ON"
       }
     },
     {

@@ -25,9 +25,9 @@ add_executable(flykylin_tests ${TEST_SOURCES})
 target_link_libraries(flykylin_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
-    Qt6::Core
-    Qt6::Network
-    Qt6::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
     flykylin_core
     flykylin_protocol
 )
@@ -46,9 +46,9 @@ add_executable(flykylin_filetransfer_tests
 target_link_libraries(flykylin_filetransfer_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
-    Qt6::Core
-    Qt6::Network
-    Qt6::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
     flykylin_core
     flykylin_protocol
 )
@@ -62,7 +62,7 @@ target_include_directories(flykylin_filetransfer_tests PRIVATE
 # Windows DLL部署（测试程序）
 if(WIN32)
     # 获取Qt安装路径
-    get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+    get_target_property(QT_QMAKE_EXECUTABLE Qt${QT_VERSION_MAJOR}::qmake IMPORTED_LOCATION)
     get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
     
     # 使用windeployqt自动部署Qt DLL（主测试可执行）

@@ -12,7 +12,7 @@
 
 # CMake
 build/
-build-wsl/
+build-*/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
@@ -20,6 +20,12 @@ cmake_install.cmake
 install_manifest.txt
 CTestTestfile.cmake
 _deps/
+
+# Swap and temp files (root level)
+swapfile
+*.txt
+temp_logs/
+logs/
 
 # Qt
 *.pro.user
