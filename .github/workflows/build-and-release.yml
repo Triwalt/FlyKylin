@@ -211,13 +211,12 @@ jobs:
         cp -P $QT_LIB_DIR/libQt5Qml.so* "$PACKAGE_DIR/lib/" 2>/dev/null || true
         cp -P $QT_LIB_DIR/libQt5Quick.so* "$PACKAGE_DIR/lib/" 2>/dev/null || true
         
-        # Create launcher script
         cat > "$PACKAGE_DIR/FlyKylin.sh" << 'EOF'
-#!/bin/bash
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
-exec "$DIR/FlyKylin" "$@"
-EOF
+        #!/bin/bash
+        DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
+        exec "$DIR/FlyKylin" "$@"
+        EOF
         chmod +x "$PACKAGE_DIR/FlyKylin.sh"
         
         # Copy documentation
