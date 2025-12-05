@@ -261,6 +261,10 @@ jobs:
             set -e
             export DEBIAN_FRONTEND=noninteractive
             
+            # Fix git "dubious ownership" error when running as root in container
+            # while files are owned by host user
+            git config --global --add safe.directory '*'
+            
             echo "==== Installing Qt5 and dependencies ===="
             apt-get update
             apt-get install -y \
