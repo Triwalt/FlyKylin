@@ -211,12 +211,10 @@ jobs:
         cp -P $QT_LIB_DIR/libQt5Qml.so* "$PACKAGE_DIR/lib/" 2>/dev/null || true
         cp -P $QT_LIB_DIR/libQt5Quick.so* "$PACKAGE_DIR/lib/" 2>/dev/null || true
         
-        cat > "$PACKAGE_DIR/FlyKylin.sh" << 'EOF'
-        #!/bin/bash
-        DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
-        exec "$DIR/FlyKylin" "$@"
-        EOF
+        echo '#!/bin/bash' > "$PACKAGE_DIR/FlyKylin.sh"
+        echo 'DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' >> "$PACKAGE_DIR/FlyKylin.sh"
+        echo 'export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"' >> "$PACKAGE_DIR/FlyKylin.sh"
+        echo 'exec "$DIR/FlyKylin" "$@"' >> "$PACKAGE_DIR/FlyKylin.sh"
         chmod +x "$PACKAGE_DIR/FlyKylin.sh"
         
         # Copy documentation
@@ -372,45 +370,45 @@ jobs:
       run: |
         VERSION="${{ github.ref_name }}"
         
-        cat > RELEASE_NOTES.md << EOF
-        # FlyKylin ${VERSION} Release
-        
-        **Release Date**: $(date +%Y-%m-%d)
-        
-        ## 🎯 Highlights
-        
-        - Cross-platform P2P communication
-        - UDP node discovery
-        - Modern Qt UI (Qt6 on Windows, Qt5 on Linux)
-        
-        ## 📦 Downloads
-        
-        ### Windows (Qt6)
-        - **AMD64 (x64)**: FlyKylin-${VERSION}-windows-amd64.zip
-        
-        ### Linux (Qt5)
-        - **AMD64 (x64)**: FlyKylin-${VERSION}-linux-amd64.tar.gz
-        - **ARM64 (RK3566)**: FlyKylin-${VERSION}-linux-arm64.tar.gz
-        
-        ## 🚀 System Requirements
-        
-        ### Windows
-        - Windows 10/11 (AMD64)
-        - 4GB RAM minimum
-        
-        ### Linux
-        - Ubuntu 22.04+ or compatible
-        - Qt5 runtime libraries
-        - 4GB RAM minimum
-        
-        ## ✅ Verification
-        
-        Verify downloads using SHA256 checksums provided.
-        
-        ---
-        
-        **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.0.0...${VERSION}
-        EOF
+        cat > RELEASE_NOTES.md << RELEASE_EOF
+# FlyKylin ${VERSION} Release
+
+**Release Date**: $(date +%Y-%m-%d)
+
+## 🎯 Highlights
+
+- Cross-platform P2P communication
+- UDP node discovery
+- Modern Qt UI (Qt6 on Windows, Qt5 on Linux)
+
+## 📦 Downloads
+
+### Windows (Qt6)
+- **AMD64 (x64)**: FlyKylin-${VERSION}-windows-amd64.zip
+
+### Linux (Qt5)
+- **AMD64 (x64)**: FlyKylin-${VERSION}-linux-amd64.tar.gz
+- **ARM64 (RK3566)**: FlyKylin-${VERSION}-linux-arm64.tar.gz
+
+## 🚀 System Requirements
+
+### Windows
+- Windows 10/11 (AMD64)
+- 4GB RAM minimum
+
+### Linux
+- Ubuntu 22.04+ or compatible
+- Qt5 runtime libraries
+- 4GB RAM minimum
+
+## ✅ Verification
+
+Verify downloads using SHA256 checksums provided.
+
+---
+
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.0.0...${VERSION}
+RELEASE_EOF
     
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
