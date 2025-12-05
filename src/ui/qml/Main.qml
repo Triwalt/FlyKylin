@@ -229,7 +229,7 @@ ApplicationWindow {
         // 左侧：图标竖栏 + 列表
         Rectangle {
             Layout.fillHeight: true
-            Layout.preferredWidth: 320 // Slightly wider
+            Layout.preferredWidth: Style.sidebarWidth
             color: Style.surface
             
             // 右侧边框
@@ -246,11 +246,10 @@ ApplicationWindow {
                 anchors.margins: 0
                 spacing: 0
 
-                // 左侧图标栏：应用 Logo + 四个功能图标
                 Rectangle {
                     id: sideIconBar
                     Layout.fillHeight: true
-                    Layout.preferredWidth: 72
+                    Layout.preferredWidth: Style.iconBarWidth
                     color: Style.surface
 
                     ColumnLayout {
@@ -281,11 +280,10 @@ ApplicationWindow {
                             spacing: 4
                             property int currentIndex: 0
 
-                            // 会话
                             Item {
                                 id: tabChatItem
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 56
+                                Layout.preferredHeight: Style.tabHeight
 
                                 Rectangle {
                                     id: tabChatBg
@@ -316,7 +314,7 @@ ApplicationWindow {
                             Item {
                                 id: tabOnlineItem
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 56
+                                Layout.preferredHeight: Style.tabHeight
 
                                 Rectangle {
                                     id: tabOnlineBg
@@ -347,7 +345,7 @@ ApplicationWindow {
                             Item {
                                 id: tabContactsItem
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 56
+                                Layout.preferredHeight: Style.tabHeight
 
                                 Rectangle {
                                     id: tabContactsBg
@@ -417,7 +415,7 @@ ApplicationWindow {
                             id: settingsButtonItem
                             Layout.fillWidth: true
                             Layout.bottomMargin: Style.spacingMedium
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: Style.tabHeight
 
                             Rectangle {
                                 id: settingsBg
