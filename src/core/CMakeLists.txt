@@ -46,6 +46,8 @@ set(CORE_SOURCES
     services/FileTransferService.h
     services/ChatSearchService.cpp
     services/ChatSearchService.h
+    services/GroupChatManager.cpp
+    services/GroupChatManager.h
 
     # AI模块
     ai/TextEmbeddingEngine.cpp
@@ -79,14 +81,14 @@ if(FLYKYLIN_ENABLE_ONNXRUNTIME AND ONNXRUNTIME_FOUND)
     if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
         target_compile_definitions(flykylin_core PRIVATE FLYKYLIN_ENABLE_ONNXRUNTIME=1)
         target_include_directories(flykylin_core PRIVATE "${ONNXRUNTIME_ROOT}/include")
-        # 链接库名称由顶层 CMake 的 link_directories(${ONNXRUNTIME_ROOT}/lib) 提供搜索路径
+        # 链接库名称由顶层 CMake �?link_directories(${ONNXRUNTIME_ROOT}/lib) 提供搜索路径
         target_link_libraries(flykylin_core PRIVATE onnxruntime)
     endif()
 endif()
 
 if(IS_RK3566 AND RKNPU_FOUND)
     target_compile_definitions(flykylin_core PRIVATE FLYKYLIN_ENABLE_RKNN=1)
-    # 链接库名称由顶层 CMake 的 link_directories(${RKNPU_ROOT}) 提供搜索路径
+    # 链接库名称由顶层 CMake �?link_directories(${RKNPU_ROOT}) 提供搜索路径
     target_link_libraries(flykylin_core PRIVATE rknnrt)
 endif()
 
