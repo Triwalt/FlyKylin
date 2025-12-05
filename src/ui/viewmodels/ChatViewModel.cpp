@@ -22,6 +22,7 @@
 #include <QImage>
 #include <QFile>
 #include <QSettings>
+#include "../../core/services/GroupChatManager.h"
 
 namespace flykylin {
 namespace ui {
@@ -115,43 +116,8 @@ void ChatViewModel::registerGroup(const QString& groupId,
                                   const QStringList& memberIds,
                                   const QString& ownerId)
 {
-    if (groupId.isEmpty()) {
-        qWarning() << "[ChatViewModel] registerGroup: empty groupId";
-        return;
-    }
-
-    QStringList normalizedMembers;
-    normalizedMembers.reserve(memberIds.size());
-    for (const QString& m : memberIds) {
-        if (m.isEmpty()) {
-            continue;
-        }
-        if (!normalizedMembers.contains(m)) {
-            normalizedMembers.append(m);
-        }
-    }
-
-    GroupMeta meta = m_groupMeta.value(groupId);
-
-    if (!ownerId.isEmpty()) {
-        if (meta.ownerId.isEmpty()) {
-            meta.ownerId = ownerId;
-        } else if (meta.ownerId != ownerId) {
-            qWarning() << "[ChatViewModel] registerGroup: ownerId mismatch for group"
-                       << groupId << "existing" << meta.ownerId << "new" << ownerId;
-        }
-    }
-
-    for (const QString& m : normalizedMembers) {
-        if (!meta.members.contains(m)) {
-            meta.members.append(m);
-        }
-    }
-
-    m_groupMeta.insert(groupId, meta);
-
-    qInfo() << "[ChatViewModel] Registered group" << groupId << "owner=" << meta.ownerId
-            << "members=" << meta.members;
+    // Delegate to GroupChatManager singleton
+    core::services::GroupChatManager::instance()->registerGroup(groupId, memberIds, ownerId);
 }
 
 void ChatViewModel::setCurrentPeer(const QString& peerId, const QString& peerName) {
@@ -186,10 +152,11 @@ void ChatViewModel::setCurrentGroup(const QString& groupId,
     QStringList effectiveMembers = memberIds;
 
     if (effectiveMembers.isEmpty()) {
-        auto metaIt = m_groupMeta.constFind(groupId);
-        if (metaIt != m_groupMeta.constEnd() && !metaIt->members.isEmpty()) {
-            const GroupMeta& meta = metaIt.value();
-            effectiveMembers = meta.members;
+        // First try GroupChatManager for registered group members
+        auto* groupMgr = core::services::GroupChatManager::instance();
+        QStringList registeredMembers = groupMgr->getGroupMembers(groupId);
+        if (!registeredMembers.isEmpty()) {
+            effectiveMembers = registeredMembers;
             qInfo() << "[ChatViewModel] setCurrentGroup: using registered group meta for"
                     << groupId << "members=" << effectiveMembers;
         } else if (m_isGroupChat && groupId == m_currentGroupId && !m_groupMembers.isEmpty()) {
@@ -301,34 +268,12 @@ void ChatViewModel::sendMessage(const QString& content) {
 
         QStringList targets = m_groupMembers;
 
-        auto it = m_groupMeta.constFind(m_currentGroupId);
-        if (it != m_groupMeta.constEnd()) {
-            const GroupMeta& meta = it.value();
-            const QString localUserId = core::UserProfile::instance().userId();
-
-            if (!meta.ownerId.isEmpty()) {
-                if (meta.ownerId == localUserId) {
-                    QStringList ownerTargets;
-                    ownerTargets.reserve(meta.members.size());
-                    for (const QString& m : meta.members) {
-                        if (m.isEmpty() || m == localUserId) {
-                            continue;
-                        }
-                        if (!ownerTargets.contains(m)) {
-                            ownerTargets.append(m);
-                        }
-                    }
-                    if (!ownerTargets.isEmpty()) {
-                        targets = ownerTargets;
-                    }
-                } else {
-                    if (meta.members.contains(meta.ownerId)) {
-                        targets = QStringList{meta.ownerId};
-                    } else {
-                        targets.clear();
-                    }
-                }
-            }
+        // Use GroupChatManager to get proper message targets
+        auto* groupMgr = core::services::GroupChatManager::instance();
+        const QString localUserId = core::UserProfile::instance().userId();
+        QStringList managerTargets = groupMgr->getMessageTargets(m_currentGroupId, localUserId);
+        if (!managerTargets.isEmpty()) {
+            targets = managerTargets;
         }
 
         if (targets.isEmpty()) {
@@ -378,34 +323,12 @@ void ChatViewModel::sendImage(const QString& filePath) {
 
         QStringList targets = m_groupMembers;
 
-        auto it = m_groupMeta.constFind(m_currentGroupId);
-        if (it != m_groupMeta.constEnd()) {
-            const GroupMeta& meta = it.value();
-            const QString localUserId = core::UserProfile::instance().userId();
-
-            if (!meta.ownerId.isEmpty()) {
-                if (meta.ownerId == localUserId) {
-                    QStringList ownerTargets;
-                    ownerTargets.reserve(meta.members.size());
-                    for (const QString& m : meta.members) {
-                        if (m.isEmpty() || m == localUserId) {
-                            continue;
-                        }
-                        if (!ownerTargets.contains(m)) {
-                            ownerTargets.append(m);
-                        }
-                    }
-                    if (!ownerTargets.isEmpty()) {
-                        targets = ownerTargets;
-                    }
-                } else {
-                    if (meta.members.contains(meta.ownerId)) {
-                        targets = QStringList{meta.ownerId};
-                    } else {
-                        targets.clear();
-                    }
-                }
-            }
+        // Use GroupChatManager to get proper message targets
+        auto* groupMgr = core::services::GroupChatManager::instance();
+        const QString localUserId = core::UserProfile::instance().userId();
+        QStringList managerTargets = groupMgr->getMessageTargets(m_currentGroupId, localUserId);
+        if (!managerTargets.isEmpty()) {
+            targets = managerTargets;
         }
 
         if (targets.isEmpty()) {
@@ -455,34 +378,12 @@ void ChatViewModel::sendFile(const QString& filePath) {
 
         QStringList targets = m_groupMembers;
 
-        auto it = m_groupMeta.constFind(m_currentGroupId);
-        if (it != m_groupMeta.constEnd()) {
-            const GroupMeta& meta = it.value();
-            const QString localUserId = core::UserProfile::instance().userId();
-
-            if (!meta.ownerId.isEmpty()) {
-                if (meta.ownerId == localUserId) {
-                    QStringList ownerTargets;
-                    ownerTargets.reserve(meta.members.size());
-                    for (const QString& m : meta.members) {
-                        if (m.isEmpty() || m == localUserId) {
-                            continue;
-                        }
-                        if (!ownerTargets.contains(m)) {
-                            ownerTargets.append(m);
-                        }
-                    }
-                    if (!ownerTargets.isEmpty()) {
-                        targets = ownerTargets;
-                    }
-                } else {
-                    if (meta.members.contains(meta.ownerId)) {
-                        targets = QStringList{meta.ownerId};
-                    } else {
-                        targets.clear();
-                    }
-                }
-            }
+        // Use GroupChatManager to get proper message targets
+        auto* groupMgr = core::services::GroupChatManager::instance();
+        const QString localUserId = core::UserProfile::instance().userId();
+        QStringList managerTargets = groupMgr->getMessageTargets(m_currentGroupId, localUserId);
+        if (!managerTargets.isEmpty()) {
+            targets = managerTargets;
         }
 
         if (targets.isEmpty()) {
@@ -751,43 +652,20 @@ void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
         const QString groupId = message.groupId();
         const QString localUserId = core::UserProfile::instance().userId();
 
-        auto it = m_groupMeta.constFind(groupId);
-        if (it != m_groupMeta.constEnd()) {
-            const GroupMeta& meta = it.value();
+        // Use GroupChatManager to determine relay targets
+        auto* groupMgr = core::services::GroupChatManager::instance();
+        QStringList relayTargets = groupMgr->getRelayTargets(
+            groupId, localUserId, message.fromUserId(), message.toUserId());
 
-            if (!meta.ownerId.isEmpty() && meta.ownerId == localUserId &&
-                message.fromUserId() != localUserId) {
+        if (!relayTargets.isEmpty()) {
+            qInfo() << "[ChatViewModel] Relaying group message" << message.id()
+                    << "for group" << groupId << "from" << message.fromUserId()
+                    << "to" << relayTargets;
 
-                QStringList relayTargets;
-                for (const QString& memberId : meta.members) {
-                    if (memberId.isEmpty()) {
-                        continue;
-                    }
-                    if (memberId == localUserId) {
-                        continue;
-                    }
-                    if (memberId == message.fromUserId()) {
-                        continue;
-                    }
-                    if (memberId == message.toUserId()) {
-                        continue;
-                    }
-                    if (!relayTargets.contains(memberId)) {
-                        relayTargets.append(memberId);
-                    }
-                }
-
-                if (!relayTargets.isEmpty()) {
-                    qInfo() << "[ChatViewModel] Relaying group message" << message.id()
-                            << "for group" << groupId << "from" << message.fromUserId()
-                            << "to" << relayTargets;
-
-                    if (message.kind() == core::MessageKind::Text) {
-                        m_messageService->relayGroupTextMessage(message, relayTargets);
-                    } else {
-                        m_messageService->relayGroupFileMessage(message, relayTargets);
-                    }
-                }
+            if (message.kind() == core::MessageKind::Text) {
+                m_messageService->relayGroupTextMessage(message, relayTargets);
+            } else {
+                m_messageService->relayGroupFileMessage(message, relayTargets);
             }
         }
     }

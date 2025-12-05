@@ -16,6 +16,9 @@
 #include "core/models/Message.h"
 #include "core/services/MessageService.h"
 
+// Forward declaration
+namespace flykylin { namespace core { namespace services { class GroupChatManager; } } }
+
 namespace flykylin {
 namespace ui {
 
@@ -182,11 +185,8 @@ private:
     QStandardItemModel* m_messageModel; ///< Model for QML
     bool m_hasMoreHistory{false};
 
-    struct GroupMeta {
-        QString ownerId;
-        QStringList members;
-    };
-    QHash<QString, GroupMeta> m_groupMeta;
+    // GroupChatManager is used for group metadata (singleton accessed via instance())
+    // No longer using internal GroupMeta struct
 };
 
 } // namespace ui
