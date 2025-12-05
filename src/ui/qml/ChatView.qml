@@ -780,10 +780,10 @@ Item {
                                             : ""
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
-                                cache: false
-                                sourceSize.width: 1024
-                                sourceSize.height: 1024
-                                width: Math.min(260, parent.width)
+                                cache: PlatformConfig.imageCacheEnabled
+                                sourceSize.width: PlatformConfig.imageSourceWidth
+                                sourceSize.height: PlatformConfig.imageSourceHeight
+                                width: Math.min(PlatformConfig.imageDisplayMaxWidth, parent.width)
                             }
                         }
 

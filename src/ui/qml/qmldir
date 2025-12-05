@@ -1,1 +1,3 @@
-singleton Style Style.qml
+module flykylin.qml
+singleton Style 1.0 Style.qml
+singleton PlatformConfig 1.0 PlatformConfig.qml
