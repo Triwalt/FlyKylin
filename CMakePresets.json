@@ -129,6 +129,22 @@
         "FLYKYLIN_FORCE_QT5": "ON",
         "Qt5_DIR": "/usr/lib/x86_64-linux-gnu/cmake/Qt5"
       }
+    },
+    {
+      "name": "wsl-arm64-cross",
+      "displayName": "WSL ARM64 (qtbase5-dev:arm64)",
+      "description": "Cross-compile using WSL installed arm64 libraries",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/wsl-arm64-cross",
+      "toolchainFile": "${sourceDir}/tools/developer/toolchain-wsl-arm64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "OFF",
+        "FLYKYLIN_FORCE_RK3566": "ON",
+        "FLYKYLIN_FORCE_QT5": "ON",
+        "Qt5_DIR": "/usr/lib/aarch64-linux-gnu/cmake/Qt5",
+        "HAVE_CXX_ATOMICS_WITHOUT_LIB": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -162,6 +178,12 @@
       "configurePreset": "linux-arm64-rk3566-cross",
       "displayName": "Build Linux ARM64 RK3566 (cross)",
       "description": "Cross-compile Linux ARM64 RK3566 build"
+    },
+    {
+      "name": "wsl-arm64-cross",
+      "configurePreset": "wsl-arm64-cross",
+      "displayName": "Build WSL ARM64 Cross",
+      "description": "Cross-compile using WSL installed arm64 libraries"
     }
   ],
   "testPresets": [

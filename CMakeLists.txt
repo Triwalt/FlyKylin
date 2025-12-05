@@ -216,8 +216,8 @@ message(STATUS "BGE Model: ${BGE_MODEL_PATH}")
 
 # RKNPU (仅RK3566)
 if(IS_RK3566)
-    set(RKNPU_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/rknn-toolkit2-2.3.2/rknpu2/runtime/Linux/librknn_api/aarch64" CACHE PATH "RKNPU root directory")
-    if(EXISTS "${RKNPU_ROOT}/include/rknn_api.h" AND EXISTS "${RKNPU_ROOT}/librknnrt.so")
+    set(RKNPU_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/rknn-toolkit2-2.3.2/rknpu2/runtime/Linux/librknn_api" CACHE PATH "RKNPU root directory")
+    if(EXISTS "${RKNPU_ROOT}/include/rknn_api.h" AND EXISTS "${RKNPU_ROOT}/aarch64/librknnrt.so")
         message(STATUS "Found RKNPU: ${RKNPU_ROOT}")
         set(RKNPU_FOUND TRUE)
     else()
@@ -243,7 +243,7 @@ endif()
 
 if(RKNPU_FOUND)
     include_directories(${RKNPU_ROOT}/include)
-    link_directories(${RKNPU_ROOT})
+    link_directories(${RKNPU_ROOT}/aarch64)
 endif()
 
 # 源文件目录
