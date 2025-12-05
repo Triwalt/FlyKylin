@@ -51,6 +51,14 @@ public:
                                const QStringList& relayTargets);
     void sendImageMessage(const QString& peerId, const QString& filePath);
     void sendFileMessage(const QString& peerId, const QString& filePath);
+    void sendGroupImageMessage(const QString& groupId,
+                               const QStringList& memberIds,
+                               const QString& filePath);
+    void sendGroupFileMessage(const QString& groupId,
+                              const QStringList& memberIds,
+                              const QString& filePath);
+    void relayGroupFileMessage(const core::Message& originalMessage,
+                               const QStringList& relayTargets);
     
     /**
      * @brief Get message history with a peer

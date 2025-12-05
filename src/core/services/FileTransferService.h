@@ -19,6 +19,16 @@ public:
 
     void sendImage(const QString& peerId, const QString& filePath);
     void sendFile(const QString& peerId, const QString& filePath);
+    void sendImage(const QString& peerId,
+                   const QString& filePath,
+                   bool isGroup,
+                   const QString& groupId,
+                   const QString& logicalMessageId);
+    void sendFile(const QString& peerId,
+                  const QString& filePath,
+                  bool isGroup,
+                  const QString& groupId,
+                  const QString& logicalMessageId);
 
     void handleIncomingTcpData(const QString& peerId, const QByteArray& data);
     void acceptTransfer(const QString& transferId, const QString& targetDirectory = QString());
@@ -50,13 +60,20 @@ private:
         quint64 fileSize{0};
         quint64 receivedBytes{0};
         bool isImage{false};
+        bool isGroup{false};
+        QString groupId;
         bool accepted{false};
         bool rejected{false};
         QString downloadDirectoryOverride;
         flykylin::core::Message message;
     };
 
-    void sendFileInternal(const QString& peerId, const QString& filePath, bool asImage);
+    void sendFileInternal(const QString& peerId,
+                          const QString& filePath,
+                          bool asImage,
+                          bool isGroup,
+                          const QString& groupId,
+                          const QString& logicalMessageId);
     QString ensureDownloadDirectory(bool isImage) const;
     QString detectMimeType(const QString& filePath, bool asImage) const;
 

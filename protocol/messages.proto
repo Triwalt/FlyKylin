@@ -59,6 +59,8 @@ message FileTransferRequest {
   string file_hash = 6;         // 文件SHA256哈希
   uint64 timestamp = 7;         // 请求时间戳
   string mime_type = 8;         // MIME类型（如 image/png, application/pdf）
+  bool is_group = 9;            // 是否群聊文件
+  string group_id = 10;         // 群聊ID（仅 is_group=true 时有效）
 }
 
 // 文件传输响应

@@ -371,11 +371,52 @@ void ChatViewModel::sendImage(const QString& filePath) {
         qInfo() << "[ChatViewModel] Sending image to" << m_currentPeerId << "path=" << normalizedPath;
         m_messageService->sendImageMessage(m_currentPeerId, normalizedPath);
     } else {
-        qInfo() << "[ChatViewModel] Sending group image to members of" << m_currentGroupId
-                << "path=" << normalizedPath;
-        for (const auto& memberId : m_groupMembers) {
-            m_messageService->sendImageMessage(memberId, normalizedPath);
+        if (m_currentGroupId.isEmpty()) {
+            qWarning() << "[ChatViewModel] Cannot send group image: empty group id";
+            return;
         }
+
+        QStringList targets = m_groupMembers;
+
+        auto it = m_groupMeta.constFind(m_currentGroupId);
+        if (it != m_groupMeta.constEnd()) {
+            const GroupMeta& meta = it.value();
+            const QString localUserId = core::UserProfile::instance().userId();
+
+            if (!meta.ownerId.isEmpty()) {
+                if (meta.ownerId == localUserId) {
+                    QStringList ownerTargets;
+                    ownerTargets.reserve(meta.members.size());
+                    for (const QString& m : meta.members) {
+                        if (m.isEmpty() || m == localUserId) {
+                            continue;
+                        }
+                        if (!ownerTargets.contains(m)) {
+                            ownerTargets.append(m);
+                        }
+                    }
+                    if (!ownerTargets.isEmpty()) {
+                        targets = ownerTargets;
+                    }
+                } else {
+                    if (meta.members.contains(meta.ownerId)) {
+                        targets = QStringList{meta.ownerId};
+                    } else {
+                        targets.clear();
+                    }
+                }
+            }
+        }
+
+        if (targets.isEmpty()) {
+            qWarning() << "[ChatViewModel] Cannot send group image: no targets for group"
+                       << m_currentGroupId;
+            return;
+        }
+
+        qInfo() << "[ChatViewModel] Sending group image for" << m_currentGroupId
+                << "targets=" << targets << "path=" << normalizedPath;
+        m_messageService->sendGroupImageMessage(m_currentGroupId, targets, normalizedPath);
     }
 }
 
@@ -407,11 +448,52 @@ void ChatViewModel::sendFile(const QString& filePath) {
         qInfo() << "[ChatViewModel] Sending file to" << m_currentPeerId << "path=" << normalizedPath;
         m_messageService->sendFileMessage(m_currentPeerId, normalizedPath);
     } else {
-        qInfo() << "[ChatViewModel] Sending group file to members of" << m_currentGroupId
-                << "path=" << normalizedPath;
-        for (const auto& memberId : m_groupMembers) {
-            m_messageService->sendFileMessage(memberId, normalizedPath);
+        if (m_currentGroupId.isEmpty()) {
+            qWarning() << "[ChatViewModel] Cannot send group file: empty group id";
+            return;
         }
+
+        QStringList targets = m_groupMembers;
+
+        auto it = m_groupMeta.constFind(m_currentGroupId);
+        if (it != m_groupMeta.constEnd()) {
+            const GroupMeta& meta = it.value();
+            const QString localUserId = core::UserProfile::instance().userId();
+
+            if (!meta.ownerId.isEmpty()) {
+                if (meta.ownerId == localUserId) {
+                    QStringList ownerTargets;
+                    ownerTargets.reserve(meta.members.size());
+                    for (const QString& m : meta.members) {
+                        if (m.isEmpty() || m == localUserId) {
+                            continue;
+                        }
+                        if (!ownerTargets.contains(m)) {
+                            ownerTargets.append(m);
+                        }
+                    }
+                    if (!ownerTargets.isEmpty()) {
+                        targets = ownerTargets;
+                    }
+                } else {
+                    if (meta.members.contains(meta.ownerId)) {
+                        targets = QStringList{meta.ownerId};
+                    } else {
+                        targets.clear();
+                    }
+                }
+            }
+        }
+
+        if (targets.isEmpty()) {
+            qWarning() << "[ChatViewModel] Cannot send group file: no targets for group"
+                       << m_currentGroupId;
+            return;
+        }
+
+        qInfo() << "[ChatViewModel] Sending group file for" << m_currentGroupId
+                << "targets=" << targets << "path=" << normalizedPath;
+        m_messageService->sendGroupFileMessage(m_currentGroupId, targets, normalizedPath);
     }
 }
 
@@ -699,7 +781,12 @@ void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
                     qInfo() << "[ChatViewModel] Relaying group message" << message.id()
                             << "for group" << groupId << "from" << message.fromUserId()
                             << "to" << relayTargets;
-                    m_messageService->relayGroupTextMessage(message, relayTargets);
+
+                    if (message.kind() == core::MessageKind::Text) {
+                        m_messageService->relayGroupTextMessage(message, relayTargets);
+                    } else {
+                        m_messageService->relayGroupFileMessage(message, relayTargets);
+                    }
                 }
             }
         }

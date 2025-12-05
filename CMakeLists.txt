@@ -141,7 +141,20 @@ else()
     # 在非 Windows 平台上始终使用 CMake 的模块模式，绑定到系统 Protobuf
     # (protobuf-compiler/libprotobuf-dev)，避免误用 Windows/vcpkg/Anaconda 的
     # Protobuf CONFIG 包和 protoc.exe。
+    #
+    # 交叉编译到 RK3566 时，使用主机上的 Protobuf 头文件，避免 FindProtobuf
+    # 去读取 sysroot 中不完整或版本不匹配的头文件而导致配置失败。
+    if(IS_RK3566)
+        set(Protobuf_INCLUDE_DIR "/usr/include" CACHE PATH "Host Protobuf include dir for RK3566 cross-build" FORCE)
+    endif()
     find_package(Protobuf REQUIRED MODULE)
+endif()
+
+# 在 RK3566 交叉编译场景下，避免 Protobuf_LIBRARIES 中包含指向 sysroot 的绝对
+# libprotobuf.so 路径（会被 Ninja 视为显式依赖，从而在文件缺失时中断）；统一
+# 使用按名称链接的形式，由交叉链接器通过搜索路径解析。
+if(IS_RK3566)
+    set(Protobuf_LIBRARIES protobuf pthread CACHE STRING "Protobuf libraries for RK3566 cross-build" FORCE)
 endif()
 
 # ONNX Runtime
@@ -230,6 +243,7 @@ endif()
 
 if(RKNPU_FOUND)
     include_directories(${RKNPU_ROOT}/include)
+    link_directories(${RKNPU_ROOT})
 endif()
 
 # 源文件目录

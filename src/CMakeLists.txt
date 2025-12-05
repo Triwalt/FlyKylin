@@ -46,6 +46,16 @@ if(IS_RK3566)
 endif()
 
 # QCoro (Coroutines) - Use FetchContent to use system Qt
+#
+# When cross-compiling for RK3566, we only need the QCoro runtime libraries
+# (Core/Network). Building QCoro's own tests under the cross toolchain pulls
+# in host x86_64 Qt5 development headers via CTest/QtTest and causes
+# compilation issues. Force BUILD_TESTING=OFF before bringing in QCoro so
+# that its CMakeLists.txt does not add the tests subdirectory.
+if(IS_RK3566)
+    set(BUILD_TESTING OFF CACHE BOOL "Disable QCoro tests for RK3566 cross-build" FORCE)
+endif()
+
 include(FetchContent)
 set(FLYKYLIN_QCORO_LOCAL_DIR "${CMAKE_SOURCE_DIR}/build-linux-qt5-gcc10-clean/_deps/qcoro-src")
 if(EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")

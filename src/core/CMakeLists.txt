@@ -84,6 +84,12 @@ if(FLYKYLIN_ENABLE_ONNXRUNTIME AND ONNXRUNTIME_FOUND)
     endif()
 endif()
 
+if(IS_RK3566 AND RKNPU_FOUND)
+    target_compile_definitions(flykylin_core PRIVATE FLYKYLIN_ENABLE_RKNN=1)
+    # 链接库名称由顶层 CMake 的 link_directories(${RKNPU_ROOT}) 提供搜索路径
+    target_link_libraries(flykylin_core PRIVATE rknnrt)
+endif()
+
 # Protobuf链接（等待安装）
 # if(Protobuf_FOUND)
 #     target_link_libraries(flykylin_core PRIVATE protobuf::libprotobuf)

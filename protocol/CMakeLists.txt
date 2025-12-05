@@ -11,9 +11,11 @@ set(PROTO_FILES
 # Use modern protobuf_generate
 add_library(flykylin_protocol STATIC ${PROTO_FILES})
 
-# Protobuf依赖Abseil和utf8_range，这里在存在 CONFIG 目标时显式链接；
-# 在仅提供系统模块包的环境（如Linux/WSL）下退回到 Protobuf_LIBRARIES。
-if(TARGET protobuf::libprotobuf)
+# Protobuf依赖Abseil和utf8_range：
+# - 在 Windows/vcpkg 环境下使用 CONFIG 包提供的 protobuf::libprotobuf 目标；
+# - 在 Linux/RK3566 交叉编译等仅存在模块包的环境下，统一使用 Protobuf_LIBRARIES，
+#   避免依赖可能缺少 IMPORTED_LOCATION 的 imported target。
+if(WIN32 AND TARGET protobuf::libprotobuf)
     target_link_libraries(flykylin_protocol
         PUBLIC
             protobuf::libprotobuf

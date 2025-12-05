@@ -59,12 +59,50 @@ FileTransferService::~FileTransferService() = default;
 
 void FileTransferService::sendImage(const QString& peerId, const QString& filePath)
 {
-    sendFileInternal(peerId, filePath, true);
+    sendFileInternal(peerId,
+                     filePath,
+                     true,   // asImage
+                     false,  // isGroup
+                     QString(),
+                     QString());
 }
 
 void FileTransferService::sendFile(const QString& peerId, const QString& filePath)
 {
-    sendFileInternal(peerId, filePath, false);
+    sendFileInternal(peerId,
+                     filePath,
+                     false,  // asImage
+                     false,  // isGroup
+                     QString(),
+                     QString());
+}
+
+void FileTransferService::sendImage(const QString& peerId,
+                                    const QString& filePath,
+                                    bool isGroup,
+                                    const QString& groupId,
+                                    const QString& logicalMessageId)
+{
+    sendFileInternal(peerId,
+                     filePath,
+                     true,  // asImage
+                     isGroup,
+                     groupId,
+                     logicalMessageId);
+}
+
+void FileTransferService::sendFile(const QString& peerId,
+                                   const QString& filePath,
+                                   bool isGroup,
+                                   const QString& groupId,
+                                   const QString& logicalMessageId)
+{
+    sendFileInternal(peerId,
+                     filePath,
+                     false,  // asImage
+                     isGroup,
+                     groupId,
+                     logicalMessageId);
 }
 
 void FileTransferService::setDownloadDirectory(const QString& path)
@@ -81,7 +119,12 @@ QString FileTransferService::downloadDirectory() const
     return m_downloadDirectory;
 }
 
-void FileTransferService::sendFileInternal(const QString& peerId, const QString& filePath, bool asImage)
+void FileTransferService::sendFileInternal(const QString& peerId,
+                                           const QString& filePath,
+                                           bool asImage,
+                                           bool isGroup,
+                                           const QString& groupId,
+                                           const QString& logicalMessageId)
 {
     QFileInfo info(filePath);
     if (!info.exists() || !info.isFile()) {
@@ -134,6 +177,10 @@ void FileTransferService::sendFileInternal(const QString& peerId, const QString&
             infoMessage.setStatus(core::MessageStatus::Delivered);
             infoMessage.setKind(core::MessageKind::Text);
             infoMessage.setContent(infoText);
+            if (isGroup && !groupId.isEmpty()) {
+                infoMessage.setIsGroup(true);
+                infoMessage.setGroupId(groupId);
+            }
 
             emit messageCreated(infoMessage);
 
@@ -147,7 +194,9 @@ void FileTransferService::sendFileInternal(const QString& peerId, const QString&
     }
 
     QString mimeType = detectMimeType(filePath, asImage);
-    QString transferId = core::Message::generateMessageId();
+    QString transferId = logicalMessageId.isEmpty()
+            ? core::Message::generateMessageId()
+            : logicalMessageId;
 
     flykylin::protocol::FileTransferRequest req;
     req.set_transfer_id(transferId.toStdString());
@@ -158,6 +207,10 @@ void FileTransferService::sendFileInternal(const QString& peerId, const QString&
     req.set_file_hash(std::string());
     req.set_timestamp(QDateTime::currentMSecsSinceEpoch());
     req.set_mime_type(mimeType.toStdString());
+    req.set_is_group(isGroup);
+    if (isGroup && !groupId.isEmpty()) {
+        req.set_group_id(groupId.toStdString());
+    }
 
     std::string payload;
     if (!req.SerializeToString(&payload)) {
@@ -248,6 +301,10 @@ void FileTransferService::sendFileInternal(const QString& peerId, const QString&
     message.setAttachmentSize(static_cast<quint64>(info.size()));
     message.setMimeType(mimeType);
     message.setContent(info.fileName());
+    if (isGroup && !groupId.isEmpty()) {
+        message.setIsGroup(true);
+        message.setGroupId(groupId);
+    }
 
     if (asImage && nsfwChecked) {
         message.setNsfwChecked(true);
@@ -342,8 +399,14 @@ void FileTransferService::handleIncomingTcpData(const QString& peerId, const QBy
         ctx.peerId = peerId;
         ctx.fileName = QString::fromStdString(req.file_name());
         ctx.fileSize = req.file_size();
-        ctx.isImage = QString::fromStdString(req.mime_type()).startsWith(QStringLiteral("image/"));
+
+        const QString mimeType = QString::fromStdString(req.mime_type());
+        ctx.isImage = mimeType.startsWith(QStringLiteral("image/"));
         ctx.accepted = ctx.isImage ? m_autoAcceptImages : m_autoAcceptFiles;
+        ctx.isGroup = req.is_group();
+        if (ctx.isGroup) {
+            ctx.groupId = QString::fromStdString(req.group_id());
+        }
 
         core::Message message;
         message.setId(transferId);
@@ -354,8 +417,12 @@ void FileTransferService::handleIncomingTcpData(const QString& peerId, const QBy
         message.setKind(ctx.isImage ? core::MessageKind::Image : core::MessageKind::File);
         message.setAttachmentName(ctx.fileName);
         message.setAttachmentSize(ctx.fileSize);
-        message.setMimeType(QString::fromStdString(req.mime_type()));
+        message.setMimeType(mimeType);
         message.setContent(ctx.fileName);
+        if (ctx.isGroup && !ctx.groupId.isEmpty()) {
+            message.setIsGroup(true);
+            message.setGroupId(ctx.groupId);
+        }
 
         ctx.message = message;
         m_incomingTransfers.insert(transferId, ctx);
@@ -460,6 +527,10 @@ void FileTransferService::handleIncomingTcpData(const QString& peerId, const QBy
                     infoMessage.setStatus(core::MessageStatus::Delivered);
                     infoMessage.setKind(core::MessageKind::Text);
                     infoMessage.setContent(infoText);
+                    if (ctx.isGroup && !ctx.groupId.isEmpty()) {
+                        infoMessage.setIsGroup(true);
+                        infoMessage.setGroupId(ctx.groupId);
+                    }
 
                     emit messageCreated(infoMessage);
 

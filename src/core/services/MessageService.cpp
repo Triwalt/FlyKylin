@@ -207,6 +207,142 @@ void MessageService::relayGroupTextMessage(const core::Message& originalMessage,
     }
 }
 
+void MessageService::sendGroupImageMessage(const QString& groupId,
+                                           const QStringList& memberIds,
+                                           const QString& filePath)
+{
+    if (groupId.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group image: empty groupId";
+        return;
+    }
+
+    if (memberIds.isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group image: no members for" << groupId;
+        return;
+    }
+
+    if (filePath.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group image: empty file path";
+        return;
+    }
+
+    const QString groupMessageId = core::Message::generateMessageId();
+
+    for (const QString& peerId : memberIds) {
+        if (peerId.isEmpty() || peerId == LocalEchoService::getEchoBotId()) {
+            continue;
+        }
+
+        qInfo() << "[MessageService] Sending group image to" << peerId << "group" << groupId
+                << "path=" << filePath;
+
+        if (!m_fileTransferService) {
+            qWarning() << "[MessageService] FileTransferService is null";
+            return;
+        }
+
+        m_fileTransferService->sendImage(peerId,
+                                         filePath,
+                                         true,   // isGroup
+                                         groupId,
+                                         groupMessageId);
+    }
+}
+
+void MessageService::sendGroupFileMessage(const QString& groupId,
+                                          const QStringList& memberIds,
+                                          const QString& filePath)
+{
+    if (groupId.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group file: empty groupId";
+        return;
+    }
+
+    if (memberIds.isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group file: no members for" << groupId;
+        return;
+    }
+
+    if (filePath.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot send group file: empty file path";
+        return;
+    }
+
+    const QString groupMessageId = core::Message::generateMessageId();
+
+    for (const QString& peerId : memberIds) {
+        if (peerId.isEmpty() || peerId == LocalEchoService::getEchoBotId()) {
+            continue;
+        }
+
+        qInfo() << "[MessageService] Sending group file to" << peerId << "group" << groupId
+                << "path=" << filePath;
+
+        if (!m_fileTransferService) {
+            qWarning() << "[MessageService] FileTransferService is null";
+            return;
+        }
+
+        m_fileTransferService->sendFile(peerId,
+                                        filePath,
+                                        true,   // isGroup
+                                        groupId,
+                                        groupMessageId);
+    }
+}
+
+void MessageService::relayGroupFileMessage(const core::Message& originalMessage,
+                                           const QStringList& relayTargets)
+{
+    if (!originalMessage.isGroup() || originalMessage.groupId().trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot relay non-group or empty-groupId file message";
+        return;
+    }
+
+    if (relayTargets.isEmpty()) {
+        return;
+    }
+
+    const QString filePath = originalMessage.attachmentLocalPath();
+    if (filePath.trimmed().isEmpty()) {
+        qWarning() << "[MessageService] Cannot relay group file: empty attachment path for"
+                   << originalMessage.id();
+        return;
+    }
+
+    if (!m_fileTransferService) {
+        qWarning() << "[MessageService] FileTransferService is null, cannot relay group file";
+        return;
+    }
+
+    const QString groupId = originalMessage.groupId();
+    const QString logicalId = originalMessage.id();
+    const bool asImage = (originalMessage.kind() == core::MessageKind::Image);
+
+    for (const QString& peerId : relayTargets) {
+        if (peerId.isEmpty() || peerId == LocalEchoService::getEchoBotId()) {
+            continue;
+        }
+
+        qInfo() << "[MessageService] Relaying group" << (asImage ? "image" : "file")
+                << logicalId << "for group" << groupId << "to" << peerId;
+
+        if (asImage) {
+            m_fileTransferService->sendImage(peerId,
+                                             filePath,
+                                             true,   // isGroup
+                                             groupId,
+                                             logicalId);
+        } else {
+            m_fileTransferService->sendFile(peerId,
+                                            filePath,
+                                            true,   // isGroup
+                                            groupId,
+                                            logicalId);
+        }
+    }
+}
+
 void MessageService::sendImageMessage(const QString& peerId, const QString& filePath) {
     if (peerId == LocalEchoService::getEchoBotId()) {
         qInfo() << "[MessageService] File/image sending to Echo Bot is not supported";
