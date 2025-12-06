@@ -8,29 +8,30 @@
   "dependencies": [
     {
       "name": "protobuf",
-      "default-features": false
+      "default-features": false,
+      "platform": "windows"
     },
     {
-      "name": "sqlite3"
+      "name": "sqlite3",
+      "platform": "windows"
     },
     {
-      "name": "gtest"
-    },
-    {
-      "name": "qtbase",
-      "platform": "!windows"
-    },
-    {
-      "name": "qtdeclarative",
-      "platform": "!windows"
+      "name": "gtest",
+      "platform": "windows"
     }
   ],
   "features": {
     "tests": {
       "description": "Build with tests",
       "dependencies": [
-        "gtest",
-        "gmock"
+        {
+          "name": "gtest",
+          "platform": "windows"
+        },
+        {
+          "name": "gmock",
+          "platform": "windows"
+        }
       ]
     },
     "onnxruntime": {

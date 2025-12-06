@@ -65,10 +65,11 @@ if(EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")
         OVERRIDE_FIND_PACKAGE
     )
 else()
+    # Use URL download instead of git clone to avoid git safe.directory issues in CI containers
     FetchContent_Declare(
         qcoro
-        GIT_REPOSITORY https://github.com/qcoro/qcoro.git
-        GIT_TAG        v0.9.0
+        URL https://github.com/qcoro/qcoro/archive/refs/tags/v0.9.0.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         OVERRIDE_FIND_PACKAGE
     )
 endif()
