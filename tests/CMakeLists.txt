@@ -15,11 +15,12 @@ if(NOT GTest_FOUND)
     if(NOT GTEST_FOUND)
         # 使用 FetchContent 下载 GoogleTest
         # Use URL download instead of git clone to avoid git safe.directory issues in CI containers
+        # Note: DOWNLOAD_EXTRACT_TIMESTAMP requires CMake 3.24+, so we omit it for compatibility
         include(FetchContent)
+        set(GTEST_DOWNLOAD_URL "https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz")
         FetchContent_Declare(
             googletest
-            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
-            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            URL "${GTEST_DOWNLOAD_URL}"
         )
         # For Windows: Prevent overriding the parent project's compiler/linker settings
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

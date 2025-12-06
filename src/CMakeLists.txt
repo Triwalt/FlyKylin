@@ -66,10 +66,11 @@ if(EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")
     )
 else()
     # Use URL download instead of git clone to avoid git safe.directory issues in CI containers
+    # Note: DOWNLOAD_EXTRACT_TIMESTAMP requires CMake 3.24+, so we omit it for compatibility
+    set(QCORO_DOWNLOAD_URL "https://github.com/qcoro/qcoro/archive/refs/tags/v0.9.0.tar.gz")
     FetchContent_Declare(
         qcoro
-        URL https://github.com/qcoro/qcoro/archive/refs/tags/v0.9.0.tar.gz
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        URL "${QCORO_DOWNLOAD_URL}"
         OVERRIDE_FIND_PACKAGE
     )
 endif()
