@@ -152,20 +152,43 @@ std::optional<core::Message> ProtobufSerializer::deserializeTextMessage(const st
 // ========== 通用操作 ==========
 
 bool ProtobufSerializer::isValidMessage(const std::vector<uint8_t>& data) const {
+    if (data.empty()) {
+        qWarning() << "[ProtobufSerializer] Empty data received";
+        return false;
+    }
+    
+    // 打印前几个字节用于调试
+    QString hexDump;
+    for (size_t i = 0; i < std::min(data.size(), size_t(16)); ++i) {
+        hexDump += QString("%1 ").arg(data[i], 2, 16, QChar('0'));
+    }
+    qDebug() << "[ProtobufSerializer] Validating message, size:" << data.size() << "hex:" << hexDump;
+    
     if (isValidDiscoveryMessage(data)) {
         return true;
     }
 
     flykylin::protocol::TcpMessage wrapper;
-    return wrapper.ParseFromArray(data.data(), data.size());
+    if (wrapper.ParseFromArray(data.data(), data.size())) {
+        qDebug() << "[ProtobufSerializer] Valid TcpMessage";
+        return true;
+    }
+    
+    qWarning() << "[ProtobufSerializer] Neither DiscoveryMessage nor TcpMessage";
+    return false;
 }
 
 bool ProtobufSerializer::isValidDiscoveryMessage(const std::vector<uint8_t>& data) const {
     flykylin::protocol::DiscoveryMessage msg;
     if (!msg.ParseFromArray(data.data(), data.size())) {
+        qWarning() << "[ProtobufSerializer] Failed to parse DiscoveryMessage, data size:" << data.size();
         return false;
     }
-    return msg.has_peer();
+    if (!msg.has_peer()) {
+        qWarning() << "[ProtobufSerializer] DiscoveryMessage has no peer field";
+        return false;
+    }
+    return true;
 }
 
 // ========== 私有辅助方法 ==========

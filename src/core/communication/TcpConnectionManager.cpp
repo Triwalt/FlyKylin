@@ -309,13 +309,16 @@ void TcpConnectionManager::onMessageFailed(quint64 messageId, QString error) {
 }
 
 void TcpConnectionManager::onPeerIdUpdated(const QString& oldPeerId, const QString& newPeerId) {
+    qInfo() << "[TcpConnectionManager] onPeerIdUpdated called:" << oldPeerId << "->" << newPeerId;
+    
     if (oldPeerId == newPeerId) {
+        qDebug() << "[TcpConnectionManager] peerIdUpdated: old and new are the same, ignoring";
         return;
     }
 
     if (!m_connections.contains(oldPeerId)) {
         qWarning() << "[TcpConnectionManager] peerIdUpdated: old peerId not found" << oldPeerId
-                   << "->" << newPeerId;
+                   << "->" << newPeerId << "current connections:" << m_connections.keys();
         return;
     }
 

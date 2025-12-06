@@ -557,19 +557,26 @@ void TcpConnection::handleHandshakeRequest(const QByteArray& payload) {
     // For incoming connections, m_peerId is initially a temporary IP:port key
     // assigned by TcpServer; after handshake we prefer the stable userId.
     QString remoteUserId = QString::fromStdString(request.user_id());
+    QString remotePeerName = QString::fromStdString(request.user_name());
+    
+    qInfo() << "[TcpConnection]" << m_peerId
+            << "Received handshake request: user_id=" << remoteUserId
+            << "user_name=" << remotePeerName
+            << "protocol=" << QString::fromStdString(request.protocol_version());
+    
     if (!remoteUserId.isEmpty()) {
         QString oldPeerId = m_peerId;
         if (remoteUserId != oldPeerId) {
+            qInfo() << "[TcpConnection] Updating peerId from" << oldPeerId << "to" << remoteUserId;
             m_peerId = remoteUserId;
             emit peerIdUpdated(oldPeerId, remoteUserId);
         }
+    } else {
+        qWarning() << "[TcpConnection]" << m_peerId
+                   << "Handshake request has empty user_id!";
     }
 
-    m_peerName = QString::fromStdString(request.user_name());
-
-    qInfo() << "[TcpConnection]" << m_peerId
-            << "Received handshake request from peer_name=" << m_peerName
-            << "protocol=" << QString::fromStdString(request.protocol_version());
+    m_peerName = remotePeerName;
 
     // For now we always accept; policy checks can be added here later.
     sendHandshakeResponse(true, QString());

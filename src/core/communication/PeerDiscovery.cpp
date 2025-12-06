@@ -211,15 +211,78 @@ void PeerDiscovery::sendBroadcast(int messageType)
     // 转换为QByteArray并发送
     QByteArray message(reinterpret_cast<const char*>(data.data()), data.size());
     
-    // 发送到广播地址
-    QHostAddress broadcastAddress = QHostAddress::Broadcast;
-    qint64 sent = m_socket->writeDatagram(message, broadcastAddress, m_udpPort);
+    // 发送到所有网络接口的广播地址（子网广播更可靠）
+    // 为每个接口创建绑定到该接口IP的socket，确保广播从正确的接口发出
+    qint64 totalSent = 0;
+    const auto interfaces = QNetworkInterface::allInterfaces();
+    for (const QNetworkInterface& iface : interfaces) {
+        if (!(iface.flags() & QNetworkInterface::IsUp) ||
+            !(iface.flags() & QNetworkInterface::IsRunning) ||
+            (iface.flags() & QNetworkInterface::IsLoopBack)) {
+            continue;
+        }
+        
+        for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
+            if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol) {
+                continue;
+            }
+            
+            QHostAddress broadcast = entry.broadcast();
+            if (broadcast.isNull()) {
+                continue;
+            }
+            
+            // 创建绑定到该接口IP的临时socket，确保广播从正确的接口发出
+            QUdpSocket tempSocket;
+            // 必须先设置socket选项，再绑定
+            tempSocket.setSocketOption(QAbstractSocket::MulticastLoopbackOption, 0);
+            if (!tempSocket.bind(entry.ip(), 0)) {
+                qWarning() << "[PeerDiscovery] Failed to bind to" << entry.ip().toString()
+                           << ":" << tempSocket.errorString();
+                continue;
+            }
+            
+            // 发送广播（QUdpSocket默认支持广播，无需额外设置）
+            qint64 sent = tempSocket.writeDatagram(message, broadcast, m_udpPort);
+            if (sent > 0) {
+                totalSent += sent;
+                qDebug() << "[PeerDiscovery] Sent broadcast to" << broadcast.toString() 
+                         << "from" << entry.ip().toString()
+                         << "via" << iface.humanReadableName();
+            } else {
+                qWarning() << "[PeerDiscovery] Failed to send to" << broadcast.toString()
+                           << ":" << tempSocket.errorString();
+            }
+            tempSocket.close();
+        }
+    }
     
-    if (sent == -1) {
-        qWarning() << "[PeerDiscovery] Failed to send broadcast:" << m_socket->errorString();
+    // 同时使用主socket发送到全局广播地址作为备用
+    qint64 globalSent = m_socket->writeDatagram(message, QHostAddress::Broadcast, m_udpPort);
+    if (globalSent > 0) {
+        totalSent += globalSent;
+        qDebug() << "[PeerDiscovery] Sent global broadcast (255.255.255.255)";
+    }
+    
+    // 额外：发送到已知的对端IP（如果有历史记录）
+    // 这是为了解决某些网络环境下广播不可靠的问题
+    for (auto it = m_peers.constBegin(); it != m_peers.constEnd(); ++it) {
+        const PeerNode& peer = it.value();
+        QHostAddress peerAddr(peer.ipAddress().toString());
+        if (!peerAddr.isNull() && !m_networkCache->isLocalAddress(peerAddr)) {
+            qint64 directSent = m_socket->writeDatagram(message, peerAddr, m_udpPort);
+            if (directSent > 0) {
+                totalSent += directSent;
+                qDebug() << "[PeerDiscovery] Sent direct to known peer" << peerAddr.toString();
+            }
+        }
+    }
+    
+    if (totalSent == 0) {
+        qWarning() << "[PeerDiscovery] Failed to send any broadcast:" << m_socket->errorString();
     } else {
         qDebug() << "[PeerDiscovery] Sent Protobuf broadcast (type:" << messageType 
-                 << ", size:" << sent << "bytes)";
+                 << ", total size:" << totalSent << "bytes)";
     }
 }
 
