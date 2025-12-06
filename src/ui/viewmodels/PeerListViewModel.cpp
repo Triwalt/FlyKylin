@@ -86,6 +86,12 @@ void PeerListViewModel::loadHistoricalSessions()
         const QString& peerId = entry.first;
         const qint64 lastTs = entry.second;
 
+        // Skip group chat sessions - they should be displayed in the groups list, not as peers
+        if (peerId.startsWith("g-")) {
+            qDebug() << "[PeerListViewModel] Skipping group session:" << peerId;
+            continue;
+        }
+
         if (m_peers.contains(peerId)) {
             continue; // 已经由PeerDiscovery填充
         }
@@ -211,12 +217,16 @@ void PeerListViewModel::requestPeerDetails(const QString& userId)
 
 void PeerListViewModel::requestAddToContacts(const QString& userId)
 {
+    qInfo() << "[PeerListViewModel] requestAddToContacts called for:" << userId;
+    
     if (!m_peers.contains(userId)) {
         qWarning() << "[PeerListViewModel] requestAddToContacts: peer not found" << userId;
         return;
     }
 
     const auto& peer = m_peers[userId];
+    qInfo() << "[PeerListViewModel] Emitting addToContactsRequested for:" << peer.userId()
+            << "name:" << peer.userName() << "ip:" << peer.ipAddress().toString();
     emit addToContactsRequested(peer.userId(),
                                 peer.userName(),
                                 peer.hostName(),
@@ -267,16 +277,19 @@ void PeerListViewModel::onPeerDiscovered(const flykylin::core::PeerNode& peer)
 
 void PeerListViewModel::onPeerOffline(const QString& userId)
 {
-    qDebug() << "[PeerListViewModel] Peer offline:" << userId;
+    qInfo() << "[PeerListViewModel] Peer offline:" << userId;
 
     auto it = m_peers.find(userId);
     if (it == m_peers.end()) {
+        qWarning() << "[PeerListViewModel] onPeerOffline: peer not found" << userId;
         return;
     }
 
     flykylin::core::PeerNode peer = it.value();
     peer.setOnline(false);
     it.value() = peer;
+    qInfo() << "[PeerListViewModel] Emitting peerOfflineNotified for:" << peer.userId()
+            << "name:" << peer.userName() << "ip:" << peer.ipAddress().toString();
     emit peerOfflineNotified(peer.userId(),
                              peer.userName(),
                              peer.ipAddress().toString());

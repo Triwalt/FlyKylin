@@ -322,34 +322,93 @@ void TcpConnectionManager::onPeerIdUpdated(const QString& oldPeerId, const QStri
         return;
     }
 
-    TcpConnection* conn = m_connections.value(oldPeerId, nullptr);
-    if (!conn) {
+    TcpConnection* newConn = m_connections.value(oldPeerId, nullptr);
+    if (!newConn) {
         qWarning() << "[TcpConnectionManager] peerIdUpdated: null connection for" << oldPeerId;
         m_connections.remove(oldPeerId);
         return;
     }
 
     if (m_connections.contains(newPeerId)) {
-        // Prefer the existing connection for the new peerId and close the duplicate.
-        if (m_connections.value(newPeerId) != conn) {
-            qInfo() << "[TcpConnectionManager] peerIdUpdated: connection for" << newPeerId
-                    << "already exists, closing duplicate for" << oldPeerId;
-            conn->disconnectFromHost();
-            conn->deleteLater();
+        TcpConnection* existingConn = m_connections.value(newPeerId, nullptr);
+        
+        if (existingConn == newConn) {
+            // Same connection object, just remove old key
+            m_connections.remove(oldPeerId);
+            return;
         }
-
-        // Clean up any stale queue under the old key.
-        m_connections.remove(oldPeerId);
-        if (m_messageQueues.contains(oldPeerId)) {
-            MessageQueue* queue = m_messageQueues.take(oldPeerId);
-            queue->deleteLater();
+        
+        // We have two different connections for the same peer.
+        // Prefer the NEW incoming connection (which just completed handshake) over the old one
+        // because the old one might be in a bad state (reconnecting, disconnected, etc.)
+        bool preferNew = true;
+        
+        if (existingConn) {
+            ConnectionState existingState = existingConn->state();
+            ConnectionState newState = newConn->state();
+            bool existingHandshakeDone = existingConn->isHandshakeCompleted();
+            bool newHandshakeDone = newConn->isHandshakeCompleted();
+            
+            qInfo() << "[TcpConnectionManager] Duplicate connection detected for" << newPeerId
+                    << "existing: state=" << static_cast<int>(existingState) 
+                    << "handshake=" << existingHandshakeDone
+                    << "new: state=" << static_cast<int>(newState)
+                    << "handshake=" << newHandshakeDone;
+            
+            // Prefer the connection that is Connected AND has completed handshake
+            if (existingState == ConnectionState::Connected && existingHandshakeDone) {
+                if (newState != ConnectionState::Connected || !newHandshakeDone) {
+                    preferNew = false;
+                }
+            }
+        }
+        
+        if (preferNew) {
+            // Close the old/existing connection, keep the new one
+            qInfo() << "[TcpConnectionManager] Replacing old connection with new one for" << newPeerId;
+            
+            if (existingConn) {
+                existingConn->disconnectFromHost();
+                existingConn->deleteLater();
+            }
+            
+            // Remove old entries
+            m_connections.remove(oldPeerId);
+            m_connections.remove(newPeerId);
+            
+            // Add new connection under the correct key
+            m_connections[newPeerId] = newConn;
+            
+            // Move message queue
+            if (m_messageQueues.contains(oldPeerId)) {
+                MessageQueue* queue = m_messageQueues.take(oldPeerId);
+                if (m_messageQueues.contains(newPeerId)) {
+                    m_messageQueues[newPeerId]->deleteLater();
+                }
+                m_messageQueues[newPeerId] = queue;
+            }
+            
+            emit connectionStateChanged(newPeerId, newConn->state(),
+                                        QStringLiteral("Connection replaced after handshake"));
+        } else {
+            // Keep existing, close new
+            qInfo() << "[TcpConnectionManager] Keeping existing connection, closing new for" << newPeerId;
+            
+            m_connections.remove(oldPeerId);
+            newConn->disconnectFromHost();
+            newConn->deleteLater();
+            
+            if (m_messageQueues.contains(oldPeerId)) {
+                MessageQueue* queue = m_messageQueues.take(oldPeerId);
+                queue->deleteLater();
+            }
         }
         return;
     }
 
     // Move connection to the new key.
     m_connections.remove(oldPeerId);
-    m_connections[newPeerId] = conn;
+    m_connections[newPeerId] = newConn;
 
     // Move any pending message queue as well.
     if (m_messageQueues.contains(oldPeerId)) {
@@ -360,7 +419,7 @@ void TcpConnectionManager::onPeerIdUpdated(const QString& oldPeerId, const QStri
     qInfo() << "[TcpConnectionManager] Updated peer ID from" << oldPeerId << "to" << newPeerId;
 
     // Notify listeners that the logical peer ID has changed.
-    emit connectionStateChanged(newPeerId, conn->state(),
+    emit connectionStateChanged(newPeerId, newConn->state(),
                                 QStringLiteral("Peer ID updated after handshake"));
 }
 

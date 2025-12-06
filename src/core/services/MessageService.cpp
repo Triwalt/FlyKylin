@@ -438,14 +438,16 @@ void MessageService::clearHistory(const QString& peerId) {
 }
 
 void MessageService::onTcpMessageReceived(QString peerId, QByteArray data) {
-    qDebug() << "[MessageService] Received TCP message from" << peerId 
-             << "size=" << data.size();
+    qInfo() << "[MessageService] Received TCP message from" << peerId 
+            << "size=" << data.size();
     
     flykylin::protocol::TcpMessage tcpMsg;
     if (!tcpMsg.ParseFromArray(data.data(), data.size())) {
         qCritical() << "[MessageService] Failed to parse TcpMessage";
         return;
     }
+
+    qInfo() << "[MessageService] TcpMessage type=" << tcpMsg.type();
 
     if (tcpMsg.type() != flykylin::protocol::TcpMessage::TEXT) {
         return;
@@ -465,6 +467,7 @@ void MessageService::onTcpMessageReceived(QString peerId, QByteArray data) {
     emit messageReceived(message);
     
     qInfo() << "[MessageService] Message received from" << peerId 
+            << "isGroup=" << message.isGroup() << "groupId=" << message.groupId()
             << "content:" << message.content().left(20) << "...";
 }
 
@@ -577,8 +580,9 @@ core::Message MessageService::parseTextMessage(const QString& peerId, const QByt
         message.setGroupId(QString::fromStdString(textMsg.group_ids(0)));
     }
 
-    qDebug() << "[MessageService] Parsed message id=" << message.id()
-             << "from=" << message.fromUserId() << "to=" << message.toUserId();
+    qInfo() << "[MessageService] Parsed message id=" << message.id()
+            << "from=" << message.fromUserId() << "to=" << message.toUserId()
+            << "isGroup=" << message.isGroup() << "groupId=" << message.groupId();
 
     return message;
 }

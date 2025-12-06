@@ -37,9 +37,11 @@ Item {
         id: deleteSessionDialog
         modal: true
         title: qsTr("删除会话")
+        width: 320  // Fixed width to avoid binding loop
 
         contentItem: ColumnLayout {
             spacing: Style.spacingMedium
+            width: parent.width
 
             Label {
                 text: qsTr("确定要删除与 %1 的会话并清空聊天记录吗？").arg(peerList.pendingDeleteUserName)
@@ -227,11 +229,7 @@ Item {
                     }
                 }
                 
-                onClicked: {
-                    if (viewModel) {
-                        viewModel.selectPeer(model.userId)
-                    }
-                }
+                // onClicked moved to MouseArea for better touch support
 
                 Menu {
                     id: contextMenu
@@ -247,6 +245,7 @@ Item {
                     MenuItem {
                         text: qsTr("加入联系人列表")
                         onTriggered: {
+                            console.log("[PeerList] Add to contacts triggered for:", model.userId)
                             if (viewModel) {
                                 viewModel.requestAddToContacts(model.userId)
                             }
@@ -275,12 +274,27 @@ Item {
                 }
 
                 MouseArea {
+                    id: itemMouseArea
                     anchors.fill: parent
-                    acceptedButtons: Qt.RightButton
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    
+                    // 长按支持（触摸屏）
+                    pressAndHoldInterval: 600
+                    onPressAndHold: {
+                        console.log("[PeerList] Long press on:", model.userId)
+                        contextMenu.popup()
+                    }
+                    
                     onClicked: function(mouse) {
+                        console.log("[PeerList] Click button:", mouse.button, "on:", model.userId)
                         if (mouse.button === Qt.RightButton) {
-                            contextMenu.open()
-                            mouse.accepted = true
+                            console.log("[PeerList] Right click on:", model.userId)
+                            contextMenu.popup()
+                        } else if (mouse.button === Qt.LeftButton) {
+                            // 左键点击选择用户
+                            if (viewModel) {
+                                viewModel.selectPeer(model.userId)
+                            }
                         }
                     }
                 }

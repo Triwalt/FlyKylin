@@ -64,6 +64,7 @@ ApplicationWindow {
         if (!members)
             return result
 
+        // Handle JavaScript Array
         if (members instanceof Array) {
             for (var i = 0; i < members.length; ++i) {
                 result.push(members[i])
@@ -71,10 +72,26 @@ ApplicationWindow {
             return result
         }
 
+        // Handle QML ListModel internal representation (has count property)
+        if (typeof members.count === 'number') {
+            for (var i = 0; i < members.count; ++i) {
+                var item = members.get(i)
+                if (item && item.modelData !== undefined) {
+                    result.push(item.modelData)
+                } else if (item) {
+                    // Try to get the value directly
+                    result.push(item)
+                }
+            }
+            if (result.length > 0)
+                return result
+        }
+
+        // Handle object with numeric keys (fallback)
         var keys = Object.keys(members)
         for (var i = 0; i < keys.length; ++i) {
             var k = keys[i]
-            if (k === "length")
+            if (k === "length" || k === "count" || k === "objectName")
                 continue
             var idx = parseInt(k)
             if (isNaN(idx))
@@ -147,37 +164,67 @@ ApplicationWindow {
             var arr = JSON.parse(groupsStore.groupsJson)
             for (var i = 0; i < arr.length; ++i) {
                 var g = arr[i]
-                if (!g.id || !g.name || !g.members)
+                if (!g.id || !g.name)
                     continue
-                var membersArray = normalizeGroupMembers(g.members)
+                // members can be stored as array or JSON string
+                var membersArray = []
+                if (typeof g.members === 'string') {
+                    try {
+                        membersArray = JSON.parse(g.members)
+                    } catch (e) {
+                        membersArray = []
+                    }
+                } else if (g.members) {
+                    membersArray = normalizeGroupMembers(g.members)
+                }
                 if (settingsViewModel && settingsViewModel.localUserId
                         && membersArray.indexOf(settingsViewModel.localUserId) === -1) {
                     membersArray.push(settingsViewModel.localUserId)
                 }
+                // Store members as JSON string to avoid QML ListModel array conversion issues
                 groupsModel.append({
                                        id: g.id,
                                        name: g.name,
-                                       members: membersArray,
+                                       membersJson: JSON.stringify(membersArray),
                                        memberCount: membersArray.length
                                    })
+                console.log("[GroupChat] loadGroups: loaded group", g.id, "members:", JSON.stringify(membersArray))
             }
         } catch (e) {
             console.log("[GroupChat] Failed to parse groupsJson", e)
         }
     }
 
+    // Helper function to get members array from group model item
+    function getGroupMembers(groupItem) {
+        if (!groupItem)
+            return []
+        if (groupItem.membersJson) {
+            try {
+                return JSON.parse(groupItem.membersJson)
+            } catch (e) {
+                return []
+            }
+        }
+        // Fallback for old format
+        return normalizeGroupMembers(groupItem.members)
+    }
+
     function saveGroups() {
         var arr = []
         for (var i = 0; i < groupsModel.count; ++i) {
             var g = groupsModel.get(i)
+            var membersArray = getGroupMembers(g)
+            console.log("[GroupChat] saveGroups: group", g.id, "members:", JSON.stringify(membersArray))
             arr.push({
                          id: g.id,
                          name: g.name,
-                         members: normalizeGroupMembers(g.members),
-                         memberCount: g.memberCount // Explicitly save memberCount
+                         members: JSON.stringify(membersArray),
+                         memberCount: membersArray.length
                      })
         }
         groupsStore.groupsJson = JSON.stringify(arr)
+        console.log("[GroupChat] saveGroups: saved", arr.length, "groups")
     }
 
     Component.onCompleted: {
@@ -519,7 +566,7 @@ ApplicationWindow {
                                                 }
 
                                                 onClicked: {
-                                                    var m = normalizeGroupMembers(members)
+                                                    var m = membersJson ? JSON.parse(membersJson) : []
                                                     chatViewModel.setCurrentGroup(id, name, m)
                                                     // 保持在“会话”页，只切换右侧聊天为该群
                                                     leftTabs.currentIndex = 0
@@ -707,7 +754,7 @@ ApplicationWindow {
                                         }
 
                                         onClicked: {
-                                            var m = normalizeGroupMembers(members)
+                                            var m = membersJson ? JSON.parse(membersJson) : []
                                             chatViewModel.setCurrentGroup(id, name, m)
                                             // 打开群聊后回到“会话”页，方便随时切换到其他会话
                                             leftTabs.currentIndex = 0
@@ -844,7 +891,7 @@ ApplicationWindow {
                                     groupsModel.append({
                                                            id: groupId,
                                                            name: name,
-                                                           members: membersArray,
+                                                           membersJson: JSON.stringify(membersArray),
                                                            memberCount: membersArray.length
                                                        })
                                     saveGroups()
@@ -917,13 +964,13 @@ ApplicationWindow {
             if (index < 0 || index >= groupsModel.count)
                 return
             var g = groupsModel.get(index)
-            var members = normalizeGroupMembers(g.members)
+            var members = getGroupMembers(g)
             if (members.indexOf(pendingUserId) === -1) {
                 members.push(pendingUserId)
                 groupsModel.set(index, {
                                      id: g.id,
                                      name: g.name,
-                                     members: members,
+                                     membersJson: JSON.stringify(members),
                                      memberCount: members.length
                                  })
                 saveGroups()
@@ -944,7 +991,8 @@ ApplicationWindow {
     Connections {
         target: chatViewModel
 
-        function onGroupMessageDiscovered(groupId, fromUserId, toUserId) {
+        onGroupMessageDiscovered: {
+            console.log("[Main] onGroupMessageDiscovered:", groupId, fromUserId, toUserId)
             if (!groupId || groupId === "")
                 return
 
@@ -974,11 +1022,12 @@ ApplicationWindow {
                 members.push(toUserId)
 
             var name = qsTr("群组 %1").arg(groupId)
+            console.log("[Main] Creating new group:", groupId, "members:", JSON.stringify(members))
 
             groupsModel.append({
                                    id: groupId,
                                    name: name,
-                                   members: members,
+                                   membersJson: JSON.stringify(members),
                                    memberCount: members.length
                                })
             saveGroups()
@@ -992,11 +1041,12 @@ ApplicationWindow {
     Connections {
         target: peerListViewModel
 
-        function onPeerDetailsRequested(userId, userName, hostName, ipAddress, tcpPort, groups) {
+        onPeerDetailsRequested: {
             peerInfoDialog.openWithArgs(userId, userName, hostName, ipAddress, tcpPort, groups)
         }
 
-        function onAddToContactsRequested(userId, userName, hostName, ipAddress, tcpPort) {
+        onAddToContactsRequested: {
+            console.log("[Main] onAddToContactsRequested received:", userId, userName, ipAddress, tcpPort)
             var displayName = (userName && userName.length > 0) ? userName : userId
 
             // 查找是否已存在
@@ -1024,6 +1074,7 @@ ApplicationWindow {
             }
 
             saveContacts()
+            console.log("[Main] Contact saved, contactsModel.count:", contactsModel.count)
 
             if (peerListViewModel && peerListViewModel.upsertPeerFromContact) {
                 peerListViewModel.upsertPeerFromContact(userId,
@@ -1034,7 +1085,7 @@ ApplicationWindow {
             }
         }
 
-        function onAddToGroupRequested(userId, userName, hostName, ipAddress, tcpPort) {
+        onAddToGroupRequested: {
             if (groupsModel.count === 0) {
                 offlineNoticeText = qsTr("当前还没有群组，请先在群组页中新建")
                 offlineNoticeVisible = true
@@ -1047,7 +1098,7 @@ ApplicationWindow {
             addToGroupDialog.open()
         }
 
-        function onPeerOfflineNotified(userId, userName, ipAddress) {
+        onPeerOfflineNotified: {
             var name = (userName && userName.length > 0) ? userName : userId
             offlineNoticeText = name + " (" + ipAddress + ") 已下线"
             offlineNoticeVisible = true
