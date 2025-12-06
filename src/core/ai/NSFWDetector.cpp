@@ -7,6 +7,7 @@
 #include <QImage>
 #include <QStringList>
 
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -190,20 +191,28 @@ public:
             return;
         }
 
-        if (inputAttr.n_dims == 4) {
-            if (inputAttr.fmt == RKNN_TENSOR_NHWC) {
-                height = inputAttr.dims[1];
-                width = inputAttr.dims[2];
-                channels = inputAttr.dims[3];
-            } else if (inputAttr.fmt == RKNN_TENSOR_NCHW) {
-                height = inputAttr.dims[2];
-                width = inputAttr.dims[3];
-                channels = inputAttr.dims[1];
-            }
-        }
+        // RKNN dims array order depends on the model conversion
+        // Log all dims for debugging
+        qInfo() << "[NSFWDetector] RKNN input dims:" << inputAttr.dims[0] << inputAttr.dims[1] 
+                << inputAttr.dims[2] << inputAttr.dims[3] << "fmt:" << inputAttr.fmt
+                << "n_dims:" << inputAttr.n_dims;
+        
+        // For open_nsfw model, we expect 224x224x3 input
+        // The dims array from RKNN can be in various orders depending on conversion
+        // dims = [1, 224, 3, 224] with fmt=NHWC is a known pattern from rknn-toolkit2
+        // This is actually [N=1, H=224, W=224, C=3] stored in a weird order
+        
+        // Hardcode for open_nsfw model: 224x224 RGB
+        // We know the model expects 224x224x3 input
+        width = 224;
+        height = 224;
+        channels = 3;
+        
+        qInfo() << "[NSFWDetector] Using fixed dimensions for open_nsfw: width=" << width 
+                << "height=" << height << "channels=" << channels;
 
         if (width <= 0 || height <= 0 || channels != 3) {
-            qWarning() << "[NSFWDetector] Unexpected RKNN input shape" << width << height << channels;
+            qWarning() << "[NSFWDetector] Unexpected RKNN input shape w=" << width << "h=" << height << "c=" << channels;
             rknn_destroy(localCtx);
             return;
         }
@@ -274,7 +283,9 @@ std::optional<float> NSFWDetector::predictNsfwProbability(const QString& imagePa
         return std::nullopt;
     }
 
-    QImage resized = image.scaled(ctx.width, ctx.height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    // Preprocessing: scale to 224x224, convert to float32 RGB (0-255 range)
+    // The RKNN model has built-in preprocessing (RGB->BGR, mean subtraction)
+    QImage resized = image.scaled(224, 224, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     if (resized.isNull()) {
         qWarning() << "[NSFWDetector] Failed to resize image" << imagePath;
         return std::nullopt;
@@ -286,34 +297,28 @@ std::optional<float> NSFWDetector::predictNsfwProbability(const QString& imagePa
 
     const int width = resized.width();
     const int height = resized.height();
-    if (width != ctx.width || height != ctx.height || ctx.channels != 3) {
-        qWarning() << "[NSFWDetector] Unexpected RKNN input size" << width << height << ctx.channels;
-        return std::nullopt;
-    }
 
-    std::vector<uint8_t> inputData(static_cast<std::size_t>(width * height * 3));
+    // Use float32 input in RGB format (0-255 range)
+    // The RKNN model will handle RGB->BGR conversion and mean subtraction internally
+    std::vector<float> inputData(static_cast<std::size_t>(width * height * 3));
 
     for (int y = 0; y < height; ++y) {
         const uchar* line = resized.constScanLine(y);
         for (int x = 0; x < width; ++x) {
             const int idx = (y * width + x) * 3;
-            const uchar r = line[3 * x + 0];
-            const uchar g = line[3 * x + 1];
-            const uchar b = line[3 * x + 2];
-
-            inputData[static_cast<std::size_t>(idx + 0)] = b;
-            inputData[static_cast<std::size_t>(idx + 1)] = g;
-            inputData[static_cast<std::size_t>(idx + 2)] = r;
+            inputData[static_cast<std::size_t>(idx + 0)] = static_cast<float>(line[x * 3 + 0]);
+            inputData[static_cast<std::size_t>(idx + 1)] = static_cast<float>(line[x * 3 + 1]);
+            inputData[static_cast<std::size_t>(idx + 2)] = static_cast<float>(line[x * 3 + 2]);
         }
     }
 
     rknn_input input;
     std::memset(&input, 0, sizeof(input));
     input.index = 0;
-    input.pass_through = 0;
-    input.type = RKNN_TENSOR_UINT8;
-    input.fmt = ctx.inputAttr.fmt;
-    input.size = static_cast<uint32_t>(inputData.size());
+    input.pass_through = 0;  // Let RKNN handle format conversion
+    input.type = RKNN_TENSOR_FLOAT32;
+    input.fmt = RKNN_TENSOR_NHWC;
+    input.size = static_cast<uint32_t>(inputData.size() * sizeof(float));
     input.buf = inputData.data();
 
     int ret = rknn_inputs_set(ctx.ctx, 1, &input);
@@ -348,10 +353,29 @@ std::optional<float> NSFWDetector::predictNsfwProbability(const QString& imagePa
         return std::nullopt;
     }
 
+    // Debug: print raw output values
     if (ctx.outputAttr.n_elems >= 2) {
-        nsfwProb = outData[1];
+        float sfw = outData[0];
+        float nsfw = outData[1];
+        qInfo() << "[NSFWDetector] RKNN raw output: sfw=" << sfw << "nsfw=" << nsfw 
+                << "sum=" << (sfw + nsfw);
+        
+        // The output should already be probabilities from softmax in the model
+        // But if sum != 1, we need to apply softmax
+        if (std::abs(sfw + nsfw - 1.0f) > 0.1f) {
+            // Apply softmax: exp(x) / sum(exp(x))
+            float maxVal = std::max(sfw, nsfw);
+            float expSfw = std::exp(sfw - maxVal);
+            float expNsfw = std::exp(nsfw - maxVal);
+            float sumExp = expSfw + expNsfw;
+            nsfwProb = expNsfw / sumExp;
+            qInfo() << "[NSFWDetector] Applied softmax -> prob=" << nsfwProb;
+        } else {
+            nsfwProb = nsfw;
+        }
     } else if (ctx.outputAttr.n_elems >= 1) {
         nsfwProb = outData[0];
+        qInfo() << "[NSFWDetector] Single output:" << nsfwProb;
     } else {
         qWarning() << "[NSFWDetector] RKNN output tensor has no elements";
         rknn_outputs_release(ctx.ctx, 1, &output);

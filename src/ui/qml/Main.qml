@@ -797,6 +797,7 @@ ApplicationWindow {
                             Dialog {
                                 id: newGroupDialog
                                 modal: true
+                                width: 360
                                 x: (mainWindow.width - width) / 2
                                 y: (mainWindow.height - height) / 2
                                 standardButtons: Dialog.Ok | Dialog.Cancel
@@ -809,7 +810,7 @@ ApplicationWindow {
                                 }
 
                                 contentItem: ColumnLayout {
-                                    anchors.fill: parent
+                                    width: parent.width
                                     anchors.margins: Style.spacingMedium
                                     spacing: Style.spacingSmall
 
@@ -927,6 +928,7 @@ ApplicationWindow {
     Dialog {
         id: addToGroupDialog
         modal: true
+        width: 320
         x: (mainWindow.width - width) / 2
         y: (mainWindow.height - height) / 2
         standardButtons: Dialog.Ok | Dialog.Cancel
@@ -935,7 +937,7 @@ ApplicationWindow {
         property string pendingUserName: ""
 
         contentItem: ColumnLayout {
-            anchors.fill: parent
+            width: parent.width
             anchors.margins: Style.spacingMedium
             spacing: Style.spacingSmall
 
