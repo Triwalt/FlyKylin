@@ -521,60 +521,127 @@ Item {
         }
 
         // Messages
-        ListView {
-            id: messageList
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            model: viewModel ? viewModel.messageModel : null
-            spacing: Style.spacingMedium
-            displayMarginBeginning: 40
-            displayMarginEnd: 40
-            
-            // Padding
-            topMargin: Style.spacingMedium
-            bottomMargin: Style.spacingMedium
-            leftMargin: Style.spacingLarge
-            rightMargin: Style.spacingLarge
-            
-            // Auto scroll to bottom
-            onCountChanged: {
-                if (pendingScrollMessageId && pendingScrollMessageId !== "")
-                    return
-                Qt.callLater(function() { positionViewAtEnd() })
-            }
 
-            onMovementEnded: {
-                if (!viewModel)
-                    return
-                if (!atYBeginning)
-                    return
-                if (pendingScrollMessageId && pendingScrollMessageId !== "")
-                    return
+            ListView {
+                id: messageList
+                anchors.fill: parent
+                clip: true
+                model: viewModel ? viewModel.messageModel : null
+                spacing: Style.spacingMedium
+                displayMarginBeginning: 40
+                displayMarginEnd: 40
 
-                var oldestId = viewModel.getOldestMessageId ? viewModel.getOldestMessageId() : ""
-                if (!oldestId || oldestId === "")
-                    return
+                // Padding
+                topMargin: Style.spacingMedium
+                bottomMargin: Style.spacingMedium
+                leftMargin: Style.spacingLarge
+                rightMargin: Style.spacingLarge
 
-                pendingScrollMessageId = oldestId
-                if (viewModel.loadMoreHistory)
-                    viewModel.loadMoreHistory()
-            }
+                // 计算距离底部的距离
+                property real distanceFromBottom: Math.max(0, contentHeight - height - contentY)
+                property bool isAtBottom: distanceFromBottom < 100
 
-            header: Item {
-                width: messageList.width
-                height: hintLabel.implicitHeight + Style.spacingSmall * 2
-                visible: viewModel && messageList.count > 0
-                         && !viewModel.hasMoreHistory
+                // 保存重建前的状态
+                property bool wasAtBottomBeforeReset: true
+                property real savedContentY: 0
 
-                Label {
-                    id: hintLabel
-                    anchors.centerIn: parent
-                    text: qsTr("已到最早的消息")
-                    font: Style.fontCaption
-                    color: Style.textSecondary
+                // 使用 flick 方法实现滚轮滚动
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    onWheel: function(wheel) {
+                        // 使用 flick 来实现平滑滚动
+                        messageList.flick(0, wheel.angleDelta.y * 8)
+                        wheel.accepted = true
+                    }
                 }
-            }
+
+                // 监听 viewModel 的 aboutToRebuildModel 信号 - 在模型重建之前触发
+                Connections {
+                    target: viewModel
+                    function onAboutToRebuildModel() {
+                        // 在模型清空前保存当前状态
+                        if (messageList.count > 0) {
+                            messageList.wasAtBottomBeforeReset = messageList.isAtBottom
+                            messageList.savedContentY = messageList.contentY
+                            console.log("[MessageList] About to rebuild, isAtBottom=" + messageList.wasAtBottomBeforeReset + ", savedContentY=" + messageList.savedContentY)
+                        }
+                    }
+                }
+
+                // 监听 model 的 rowsAboutToBeInserted 信号 - 增量添加消息时触发
+                Connections {
+                    target: messageList.model
+                    function onRowsAboutToBeInserted(parent, first, last) {
+                        // 在新消息插入前保存当前状态
+                        if (messageList.count > 0) {
+                            messageList.wasAtBottomBeforeReset = messageList.isAtBottom
+                            messageList.savedContentY = messageList.contentY
+                            console.log("[MessageList] About to insert rows, isAtBottom=" + messageList.wasAtBottomBeforeReset + ", savedContentY=" + messageList.savedContentY)
+                        }
+                    }
+                }
+
+                // Auto scroll to bottom or restore position
+                onCountChanged: {
+                    if (pendingScrollMessageId && pendingScrollMessageId !== "")
+                        return
+
+                    // 忽略 count=0 的情况（模型清空时）
+                    if (count === 0)
+                        return
+
+                    console.log("[MessageList] Count changed to " + count + ", wasAtBottom=" + wasAtBottomBeforeReset)
+
+                    if (wasAtBottomBeforeReset) {
+                        // 在底部时，滚动到最新消息
+                        Qt.callLater(function() {
+                            positionViewAtEnd()
+                        })
+                    } else {
+                        // 不在底部时，恢复 contentY（保持看到相同的消息）
+                        Qt.callLater(function() {
+                            contentY = savedContentY
+                            console.log("[MessageList] Restored contentY=" + contentY)
+                        })
+                    }
+                }
+
+                onMovementEnded: {
+                    // 加载更多历史消息的逻辑
+                    if (!viewModel)
+                        return
+                    if (!atYBeginning)
+                        return
+                    if (pendingScrollMessageId && pendingScrollMessageId !== "")
+                        return
+
+                    var oldestId = viewModel.getOldestMessageId ? viewModel.getOldestMessageId() : ""
+                    if (!oldestId || oldestId === "")
+                        return
+
+                    pendingScrollMessageId = oldestId
+                    if (viewModel.loadMoreHistory)
+                        viewModel.loadMoreHistory()
+                }
+
+                header: Item {
+                    width: messageList.width
+                    height: hintLabel.implicitHeight + Style.spacingSmall * 2
+                    visible: viewModel && messageList.count > 0
+                             && !viewModel.hasMoreHistory
+
+                    Label {
+                        id: hintLabel
+                        anchors.centerIn: parent
+                        text: qsTr("已到最早的消息")
+                        font: Style.fontCaption
+                        color: Style.textSecondary
+                    }
+                }
 
             delegate: Item {
                 id: messageDelegate
@@ -829,6 +896,44 @@ Item {
                         font: Style.fontCaption
                         color: "#2E7D32"
                         opacity: 0.9
+                    }
+                }
+            }
+            }
+
+            // 回到底部按钮
+            Rectangle {
+                id: scrollToBottomBtn
+                width: 44
+                height: 44
+                radius: 22
+                color: Style.primary
+                opacity: 0.9
+                visible: !messageList.isAtBottom && messageList.count > 0
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 16
+                anchors.bottomMargin: 16
+
+                Label {
+                    anchors.centerIn: parent
+                    text: "\ue5db" // arrow_downward icon
+                    font.family: Style.iconFont.family
+                    font.pixelSize: 24
+                    color: "white"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        messageList.positionViewAtEnd()
+                    }
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 150
                     }
                 }
             }

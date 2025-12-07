@@ -128,6 +128,14 @@ signals:
     void peerChanged(QString peerId, QString peerName);
     
     /**
+     * @brief About to rebuild message model
+     * 
+     * Emitted before clearing and rebuilding the message model.
+     * View should save scroll position state before this happens.
+     */
+    void aboutToRebuildModel();
+    
+    /**
      * @brief Message list updated
      * 
      * View should re-render the message list
@@ -173,6 +181,7 @@ private slots:
 private:
     void loadMessagesFromService();
     void rebuildMessageModel();
+    void appendMessageToModel(const core::Message& msg);
     
     services::MessageService* m_messageService;
     

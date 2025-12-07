@@ -58,8 +58,15 @@ ChatViewModel::ChatViewModel(QObject* parent)
 }
 
 void ChatViewModel::rebuildMessageModel() {
+    emit aboutToRebuildModel();
     m_messageModel->clear();
     
+    for (const auto& msg : m_messages) {
+        appendMessageToModel(msg);
+    }
+}
+
+void ChatViewModel::appendMessageToModel(const core::Message& msg) {
     QString localUserId = core::UserProfile::instance().userId();
     QString localUserName = core::UserProfile::instance().userName();
     if (localUserName.isEmpty()) {
@@ -68,44 +75,42 @@ void ChatViewModel::rebuildMessageModel() {
     auto* db = flykylin::database::DatabaseService::instance();
     flykylin::database::DatabaseService::PeerInfo peerInfo;
     
-    for (const auto& msg : m_messages) {
-        auto* item = new QStandardItem();
-        item->setData(msg.content(), Qt::UserRole);
-        const bool isMine = (msg.fromUserId() == localUserId);
-        item->setData(isMine, Qt::UserRole + 1);
-        item->setData(msg.timestamp().toString("HH:mm:ss"), Qt::UserRole + 2);
-        item->setData(QVariant::fromValue(msg.status()), Qt::UserRole + 3);
-        QString senderName;
-        if (isMine) {
-            senderName = localUserName;
-        } else if (!m_isGroupChat && !m_currentPeerName.isEmpty()) {
-            senderName = m_currentPeerName;
-        } else if (db && db->loadPeer(msg.fromUserId(), peerInfo) && !peerInfo.userName.isEmpty()) {
-            senderName = peerInfo.userName;
-        } else {
-            senderName = msg.fromUserId();
-        }
-        item->setData(senderName, Qt::UserRole + 4);
-
-        QString kindStr = QStringLiteral("text");
-        switch (msg.kind()) {
-        case core::MessageKind::Image:
-            kindStr = QStringLiteral("image");
-            break;
-        case core::MessageKind::File:
-            kindStr = QStringLiteral("file");
-            break;
-        default:
-            break;
-        }
-
-        item->setData(kindStr, Qt::UserRole + 5);
-        item->setData(msg.attachmentLocalPath(), Qt::UserRole + 6);
-        item->setData(msg.attachmentName(), Qt::UserRole + 7);
-        item->setData(msg.id(), Qt::UserRole + 8);
-        item->setData(msg.nsfwPassed(), Qt::UserRole + 9);
-        m_messageModel->appendRow(item);
+    auto* item = new QStandardItem();
+    item->setData(msg.content(), Qt::UserRole);
+    const bool isMine = (msg.fromUserId() == localUserId);
+    item->setData(isMine, Qt::UserRole + 1);
+    item->setData(msg.timestamp().toString("HH:mm:ss"), Qt::UserRole + 2);
+    item->setData(QVariant::fromValue(msg.status()), Qt::UserRole + 3);
+    QString senderName;
+    if (isMine) {
+        senderName = localUserName;
+    } else if (!m_isGroupChat && !m_currentPeerName.isEmpty()) {
+        senderName = m_currentPeerName;
+    } else if (db && db->loadPeer(msg.fromUserId(), peerInfo) && !peerInfo.userName.isEmpty()) {
+        senderName = peerInfo.userName;
+    } else {
+        senderName = msg.fromUserId();
     }
+    item->setData(senderName, Qt::UserRole + 4);
+
+    QString kindStr = QStringLiteral("text");
+    switch (msg.kind()) {
+    case core::MessageKind::Image:
+        kindStr = QStringLiteral("image");
+        break;
+    case core::MessageKind::File:
+        kindStr = QStringLiteral("file");
+        break;
+    default:
+        break;
+    }
+
+    item->setData(kindStr, Qt::UserRole + 5);
+    item->setData(msg.attachmentLocalPath(), Qt::UserRole + 6);
+    item->setData(msg.attachmentName(), Qt::UserRole + 7);
+    item->setData(msg.id(), Qt::UserRole + 8);
+    item->setData(msg.nsfwPassed(), Qt::UserRole + 9);
+    m_messageModel->appendRow(item);
 }
 
 ChatViewModel::~ChatViewModel() {
@@ -703,7 +708,8 @@ void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
         qInfo() << "[ChatViewModel] Message received from" << peerId;
 
         m_messages.append(message);
-        rebuildMessageModel();
+        // 增量添加消息，避免重建整个模型导致闪烁
+        appendMessageToModel(message);
         emit messageReceived(message);
         emit messagesUpdated();
     }
@@ -727,14 +733,19 @@ void ChatViewModel::onMessageSent(const flykylin::core::Message& message) {
             }
         }
 
-        if (std::none_of(m_messages.begin(), m_messages.end(),
+        bool isNewMessage = std::none_of(m_messages.begin(), m_messages.end(),
                          [&message](const core::Message& msg) {
                              return msg.id() == message.id();
-                         })) {
+                         });
+        if (isNewMessage) {
             m_messages.append(message);
+            // 增量添加新消息，避免重建整个模型导致闪烁
+            appendMessageToModel(message);
+        } else {
+            // 消息已存在（状态更新），需要重建模型
+            rebuildMessageModel();
         }
 
-        rebuildMessageModel();
         emit messageSent(message);
         emit messagesUpdated();
     } else {
