@@ -308,12 +308,12 @@ ApplicationWindow {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 48
-                            Layout.topMargin: Style.spacingMedium
+                            Layout.topMargin: 8
                             color: "transparent"
 
                             Image {
                                 anchors.centerIn: parent
-                                width: parent.width * 0.9
+                                width: parent.width * 0.7
                                 source: "../resources/app_icon.svg"
                                 fillMode: Image.PreserveAspectFit
                             }
@@ -324,6 +324,7 @@ ApplicationWindow {
                             id: leftTabs
                             Layout.fillWidth: true
                             Layout.fillHeight: false
+                            Layout.topMargin: Style.spacingMedium
                             spacing: 4
                             property int currentIndex: 0
 

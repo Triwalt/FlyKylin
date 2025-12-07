@@ -226,12 +226,39 @@ if(IS_RK3566)
     endif()
 endif()
 
+# 版本信息配置
+string(TIMESTAMP FLYKYLIN_BUILD_DATE "%Y-%m-%d")
+string(TIMESTAMP FLYKYLIN_BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S")
+
+# 获取 Git 提交哈希
+find_package(Git QUIET)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE FLYKYLIN_GIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+if(NOT FLYKYLIN_GIT_HASH)
+    set(FLYKYLIN_GIT_HASH "unknown")
+endif()
+
+# 生成版本头文件
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/core/Version.h.in
+    ${CMAKE_BINARY_DIR}/generated/Version.h
+    @ONLY
+)
+
 # 包含目录
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/core
     ${CMAKE_SOURCE_DIR}/src/platform
     ${CMAKE_SOURCE_DIR}/src/ui
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 # 先构建protocol库

@@ -322,7 +322,142 @@ Item {
                         }
                     }
 
-                    Item { Layout.fillHeight: true }
+                    // About section
+                    GroupBox {
+                        title: qsTr("关于")
+                        Layout.fillWidth: true
+                        leftPadding: Style.spacingLarge
+                        rightPadding: Style.spacingLarge
+                        topPadding: Style.spacingMedium
+                        bottomPadding: Style.spacingMedium
+                        background: Rectangle {
+                            color: Style.surface
+                            radius: 0
+                            border.width: 1
+                            border.color: "#E5E7EB"
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 0
+                            spacing: Style.spacingSmall
+
+                            // App name and version
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Style.spacingSmall
+
+                                Image {
+                                    source: "../resources/app_icon.svg"
+                                    sourceSize.width: 48
+                                    sourceSize.height: 48
+                                }
+
+                                ColumnLayout {
+                                    spacing: 2
+
+                                    Label {
+                                        text: "FlyKylin"
+                                        font: Style.fontHeading
+                                        color: Style.textPrimary
+                                    }
+
+                                    Label {
+                                        text: qsTr("AI智能飞秋 - 局域网通讯工具")
+                                        font: Style.fontCaption
+                                        color: Style.textSecondary
+                                    }
+                                }
+                            }
+
+                            // Version info
+                            GridLayout {
+                                Layout.fillWidth: true
+                                Layout.topMargin: Style.spacingSmall
+                                columns: 2
+                                columnSpacing: Style.spacingMedium
+                                rowSpacing: 4
+
+                                Label {
+                                    text: qsTr("版本")
+                                    font: Style.fontCaption
+                                    color: Style.textSecondary
+                                }
+                                Label {
+                                    text: settingsViewModel ? settingsViewModel.appVersion : "1.0.0"
+                                    font: Style.fontCaption
+                                    color: Style.textPrimary
+                                }
+
+                                Label {
+                                    text: qsTr("构建日期")
+                                    font: Style.fontCaption
+                                    color: Style.textSecondary
+                                }
+                                Label {
+                                    text: settingsViewModel ? settingsViewModel.buildDate : "-"
+                                    font: Style.fontCaption
+                                    color: Style.textPrimary
+                                }
+
+                                Label {
+                                    text: qsTr("Qt 版本")
+                                    font: Style.fontCaption
+                                    color: Style.textSecondary
+                                }
+                                Label {
+                                    text: settingsViewModel ? settingsViewModel.qtVersion : "-"
+                                    font: Style.fontCaption
+                                    color: Style.textPrimary
+                                }
+
+                                Label {
+                                    text: qsTr("平台")
+                                    font: Style.fontCaption
+                                    color: Style.textSecondary
+                                }
+                                Label {
+                                    text: settingsViewModel ? settingsViewModel.platform : "-"
+                                    font: Style.fontCaption
+                                    color: Style.textPrimary
+                                }
+                            }
+
+                            // Features
+                            Label {
+                                text: qsTr("功能特性")
+                                font: Style.fontCaption
+                                color: Style.textSecondary
+                                Layout.topMargin: Style.spacingSmall
+                            }
+
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 6
+
+                                Repeater {
+                                    model: settingsViewModel ? settingsViewModel.features : []
+
+                                    delegate: Rectangle {
+                                        width: featureLabel.implicitWidth + 12
+                                        height: featureLabel.implicitHeight + 6
+                                        radius: 4
+                                        color: "#EEF2FF"
+
+                                        Label {
+                                            id: featureLabel
+                                            anchors.centerIn: parent
+                                            text: modelData
+                                            font: Style.fontCaption
+                                            color: Style.primary
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Item { Layout.preferredHeight: Style.spacingMedium }
                 }
             }
         }

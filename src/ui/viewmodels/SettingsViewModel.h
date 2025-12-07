@@ -7,6 +7,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 namespace flykylin {
 namespace ui {
@@ -22,6 +23,13 @@ class SettingsViewModel : public QObject {
     Q_PROPERTY(bool nsfwBlockOutgoing READ nsfwBlockOutgoing WRITE setNsfwBlockOutgoing NOTIFY nsfwBlockOutgoingChanged)
     Q_PROPERTY(bool nsfwBlockIncoming READ nsfwBlockIncoming WRITE setNsfwBlockIncoming NOTIFY nsfwBlockIncomingChanged)
     Q_PROPERTY(double nsfwThreshold READ nsfwThreshold WRITE setNsfwThreshold NOTIFY nsfwThresholdChanged)
+    
+    // Version info (read-only)
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString buildDate READ buildDate CONSTANT)
+    Q_PROPERTY(QString qtVersion READ qtVersion CONSTANT)
+    Q_PROPERTY(QString platform READ platform CONSTANT)
+    Q_PROPERTY(QStringList features READ features CONSTANT)
 
 public:
     explicit SettingsViewModel(QObject* parent = nullptr);
@@ -35,6 +43,13 @@ public:
     bool nsfwBlockOutgoing() const { return m_nsfwBlockOutgoing; }
     bool nsfwBlockIncoming() const { return m_nsfwBlockIncoming; }
     double nsfwThreshold() const { return m_nsfwThreshold; }
+    
+    // Version info getters
+    QString appVersion() const;
+    QString buildDate() const;
+    QString qtVersion() const;
+    QString platform() const;
+    QStringList features() const;
 
 public slots:
     void setUserName(const QString& userName);

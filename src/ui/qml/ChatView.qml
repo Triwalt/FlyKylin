@@ -453,7 +453,7 @@ Item {
                 // Global chat search box
                 Rectangle {
                     id: globalSearchBox
-                    Layout.preferredWidth: 260
+                    Layout.preferredWidth: 240
                     Layout.alignment: Qt.AlignVCenter
                     height: 32
                     radius: 16
@@ -463,14 +463,21 @@ Item {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 6
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 8
+                        anchors.topMargin: 0
+                        anchors.bottomMargin: 0
                         spacing: 4
 
                         TextField {
                             id: globalSearchField
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             placeholderText: qsTr("搜索聊天记录")
                             font: Style.fontCaption
+                            verticalAlignment: Text.AlignVCenter
+                            topPadding: 0
+                            bottomPadding: 0
                             background: null
                             selectByMouse: true
                             onAccepted: {
@@ -493,6 +500,7 @@ Item {
                             id: globalSearchButton
                             implicitWidth: 24
                             implicitHeight: 24
+                            Layout.alignment: Qt.AlignVCenter
                             background: Rectangle {
                                 anchors.fill: parent
                                 radius: 12
@@ -501,7 +509,8 @@ Item {
                             contentItem: Label {
                                 anchors.centerIn: parent
                                 text: "\ue8b6" // search icon
-                                font: Style.iconFont
+                                font.family: Style.iconFont.family
+                                font.pixelSize: 18
                                 color: Style.textSecondary
                             }
                             onClicked: globalSearchField.accepted()
@@ -589,9 +598,20 @@ Item {
                         property bool isNsfwInfo: isText && model.content && model.content.startsWith("[NSFW]")
                         property bool isNsfwBlocked: isNsfwInfo && model.content.indexOf("阻断") !== -1
 
-                        // Width is at most 80% of available row width, with inner padding
-                        width: Math.min(parent.width * 0.8, contentColumn.implicitWidth + 32)
-                        height: contentColumn.implicitHeight + 24
+                        // Calculate content widths for adaptive bubble sizing
+                        property real maxBubbleWidth: bubbleItem.width * 0.70
+                        property real senderWidth: senderRow.visible ? senderRow.implicitWidth : 0
+                        property real textWidth: msgText.visible ? Math.min(msgText.implicitWidth, maxBubbleWidth - 24) : 0
+                        // 图片宽度：使用paintedWidth（实际渲染宽度），加载完成后自动更新
+                        property real imageWidth: msgImage.visible && msgImage.status === Image.Ready ? Math.min(msgImage.paintedWidth, maxBubbleWidth - 24) : 0
+                        property real fileWidth: fileRow.visible ? fileRow.implicitWidth : 0
+                        property real nsfwWidth: nsfwBlockedPlaceholder.visible ? 180 : 0
+                        property real actualContentWidth: Math.max(senderWidth, textWidth, imageWidth, fileWidth, nsfwWidth)
+                        
+                        // Width adapts to content with min/max constraints
+                        // 图片消息使用图片实际宽度，其他消息使用内容宽度
+                        width: msgContent.isImage ? Math.max(80, Math.min(maxBubbleWidth, imageWidth + 24)) : Math.max(80, Math.min(maxBubbleWidth, actualContentWidth + 24))
+                        height: contentColumn.height + 24
 
                         anchors.right: model.isMine ? parent.right : undefined
                         anchors.left: model.isMine ? undefined : parent.left
@@ -635,15 +655,15 @@ Item {
 
                         Column {
                             id: contentColumn
-                            anchors.fill: parent
+                            anchors.left: parent.left
+                            anchors.top: parent.top
                             anchors.margins: 12
                             spacing: 6
 
                             // Sender avatar + name (Telegram-style header per bubble)
-                            Item {
+                            Row {
                                 id: senderRow
-                                width: parent.width
-                                height: 24
+                                spacing: 8
                                 visible: !msgContent.isNsfwInfo
 
                                 Rectangle {
@@ -654,8 +674,6 @@ Item {
                                     color: model.isMine
                                            ? avatarLib.colorFor(settingsViewModel.avatarId)
                                            : avatarLib.colorForName(model.senderName || (viewModel ? viewModel.currentPeerName : ""))
-                                    anchors.left: parent.left
-                                    anchors.verticalCenter: parent.verticalCenter
 
                                     Label {
                                         anchors.centerIn: parent
@@ -668,62 +686,57 @@ Item {
                                 }
 
                                 Label {
-                                    anchors.left: senderAvatar.right
-                                    anchors.leftMargin: 8
-                                    anchors.bottom: senderAvatar.bottom
-                                    width: parent.width - senderAvatar.width - 8
+                                    id: senderNameLabel
+                                    anchors.verticalCenter: senderAvatar.verticalCenter
                                     text: model.isMine
                                           ? settingsViewModel.userName
                                           : (model.senderName || (viewModel ? viewModel.currentPeerName : ""))
                                     font: Style.fontCaption
                                     color: model.isMine ? Style.textOnPrimary : Style.textSecondary
-                                    elide: Text.ElideRight
                                 }
                             }
 
                             // Text message content
-                            Label {
+                            Text {
                                 id: msgText
                                 visible: msgContent.isText && !msgContent.isNsfwBlocked
-                                width: parent.width
                                 text: model.content
                                 color: msgContent.isNsfwInfo
                                        ? "#F57F17"    // NSFW 提示文字颜色
                                        : (model.isMine ? Style.textOnPrimary : Style.textPrimary)
                                 font: msgContent.isNsfwInfo ? Style.fontCaption : Style.fontBody
                                 wrapMode: Text.Wrap
+                                width: implicitWidth > msgContent.maxBubbleWidth - 24 ? msgContent.maxBubbleWidth - 24 : implicitWidth
                             }
 
-                            // NSFW 阻断占位图（近似等大的灰色块，中央感叹号 + Blocked 标识）
+                            // NSFW 阻断占位图
                             Rectangle {
                                 id: nsfwBlockedPlaceholder
                                 visible: msgContent.isNsfwBlocked
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                width: Math.min(260, parent.width)
-                                height: width * 0.75    // 4:3 比例，接近常规图片气泡
+                                width: 180
+                                height: 100
                                 radius: 8
-                                color: "#EEEEEE"
+                                color: model.isMine ? "#FFE0E0" : "#EEEEEE"
+                                border.width: 1
+                                border.color: model.isMine ? "#FFCDD2" : "#E0E0E0"
 
                                 Column {
                                     anchors.centerIn: parent
-                                    width: parent.width
                                     spacing: 4
 
                                     Label {
-                                        width: parent.width
-                                        text: "!"
-                                        font.pixelSize: 32
-                                        color: "#757575"
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: "\ue002" // block icon
+                                        font.family: Style.iconFont.family
+                                        font.pixelSize: 28
+                                        color: model.isMine ? "#D32F2F" : "#757575"
                                     }
 
                                     Label {
-                                        width: parent.width
-                                        text: qsTr("Blocked")
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: model.isMine ? qsTr("发送已阻断") : qsTr("接收已阻断")
                                         font: Style.fontCaption
-                                        color: "#424242"
-                                        horizontalAlignment: Text.AlignHCenter
+                                        color: model.isMine ? "#C62828" : "#424242"
                                     }
                                 }
                             }
@@ -733,7 +746,7 @@ Item {
                                 id: fileRow
                                 visible: msgContent.isFile
                                 spacing: 8
-                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: Math.min(implicitWidth, msgContent.maxBubbleWidth - 24)
 
                                 Rectangle {
                                     width: 28
@@ -751,6 +764,7 @@ Item {
 
                                 Column {
                                     spacing: 2
+                                    width: fileRow.width - 36
 
                                     Label {
                                         text: model.attachmentName || model.content
@@ -772,7 +786,6 @@ Item {
                             Image {
                                 id: msgImage
                                 visible: msgContent.isImage
-                                anchors.horizontalCenter: parent.horizontalCenter
                                 source: model.attachmentPath && model.attachmentPath !== "" ?
                                             (model.attachmentPath.startsWith("file:")
                                                  ? model.attachmentPath
@@ -783,7 +796,7 @@ Item {
                                 cache: PlatformConfig.imageCacheEnabled
                                 sourceSize.width: PlatformConfig.imageSourceWidth
                                 sourceSize.height: PlatformConfig.imageSourceHeight
-                                width: Math.min(PlatformConfig.imageDisplayMaxWidth, parent.width)
+                                width: Math.min(PlatformConfig.imageDisplayMaxWidth, msgContent.maxBubbleWidth - 24)
                             }
                         }
 

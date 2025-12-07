@@ -668,24 +668,13 @@ void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
                 m_messageService->relayGroupFileMessage(message, relayTargets);
             }
         }
-    }
 
-    if (!m_isGroupChat) {
-        if (peerId != m_currentPeerId) {
-            qDebug() << "[ChatViewModel] Received message from" << peerId
-                     << "but current peer is" << m_currentPeerId << ", ignoring";
-            return;
-        }
-
-        qInfo() << "[ChatViewModel] Message received from" << peerId;
-
-        m_messages.append(message);
-        rebuildMessageModel();
-        emit messageReceived(message);
-        emit messagesUpdated();
-    } else {
-        if (!message.isGroup() || message.groupId().isEmpty() ||
-            message.groupId() != m_currentGroupId) {
+        // Group messages should only be displayed in group chat mode
+        // Do not display in single chat even if fromUserId matches current peer
+        if (!m_isGroupChat || m_currentGroupId != groupId) {
+            qDebug() << "[ChatViewModel] Group message for" << groupId
+                     << "but current session is" << (m_isGroupChat ? m_currentGroupId : "single chat")
+                     << ", not displaying here";
             return;
         }
 
@@ -700,7 +689,25 @@ void ChatViewModel::onMessageReceived(const flykylin::core::Message& message) {
         rebuildMessageModel();
         emit messageReceived(message);
         emit messagesUpdated();
+        return;
     }
+
+    // Non-group (single chat) message handling
+    if (!m_isGroupChat) {
+        if (peerId != m_currentPeerId) {
+            qDebug() << "[ChatViewModel] Received message from" << peerId
+                     << "but current peer is" << m_currentPeerId << ", ignoring";
+            return;
+        }
+
+        qInfo() << "[ChatViewModel] Message received from" << peerId;
+
+        m_messages.append(message);
+        rebuildMessageModel();
+        emit messageReceived(message);
+        emit messagesUpdated();
+    }
+    // Note: Group messages are handled earlier in this function and return early
 }
 
 void ChatViewModel::onMessageSent(const flykylin::core::Message& message) {
