@@ -82,38 +82,7 @@ for (int h = 0; h < height; ++h) {
 }
 ```
 
-## 已修改文件
-- `src/core/ai/NSFWDetector.cpp` - RKNN推理代码（已修复）
-
-## 验证结果
-端到端测试通过：
-- porn.jpg: NSFW=0.9575 (期望~0.96) ✅
-- pig.jpg: NSFW=0.0003 (期望~0.0) ✅
-
-### C++预处理代码关键逻辑
-```cpp
-// 从 HWC [h][w][c] 转换为 WCH [w][c][h]
-for (int h = 0; h < height; ++h) {
-    for (int w = 0; w < width; ++w) {
-        // RGB -> BGR + 均值减法
-        float bVal = b - 104.0f;
-        float gVal = g - 117.0f;
-        float rVal = r - 123.0f;
-        
-        // 存储为 WCH: index = w * (C * H) + c * H + h
-        size_t baseIdx = w * 3 * height;
-        inputData[baseIdx + 0 * height + h] = bVal;  // B
-        inputData[baseIdx + 1 * height + h] = gVal;  // G
-        inputData[baseIdx + 2 * height + h] = rVal;  // R
-    }
-}
-```
-
 ---
-
-## 问题背景
-
-在RK3566板端整合RKNN加速NSFW检测时，检测结果严重不准确。
 
 ## 测试环境
 
@@ -124,72 +93,31 @@ for (int h = 0; h < height; ++h) {
   - NSFW图片: `E:\Download\porn.jpg` (PC) / `/mnt/e/Download/porn.jpg` (WSL)
   - 正常图片: `E:\Pictures\pig.jpg` (PC) / `/mnt/e/Pictures/pig.jpg` (WSL)
 
-## 参考结果 (PC端ONNX)
-
-| 图片 | SFW | NSFW |
-|------|-----|------|
-| porn.jpg | 0.036 | **0.964** |
-| pig.jpg | 应该接近1.0 | 应该接近0.0 |
-
-## 当前问题
-
-板端RKNN检测 porn.jpg 结果: NSFW=0.017 (严重错误，应该是0.96)
-
-## 问题根因分析
-
-### 1. 预处理不一致
-open_nsfw模型期望:
-- 输入格式: NHWC [1, 224, 224, 3]
-- 颜色空间: **BGR** (不是RGB)
-- 预处理: 减去均值 [B=104, G=117, R=123]
-- 数据类型: float32
-
-### 2. RKNN mean_values配置失败
-```python
-# 尝试设置mean_values报错
-rknn.config(mean_values=[[104, 117, 123]])  # 报错: expect 224
-```
-RKNN对NHWC格式的mean_values期望长度为H(224)而不是C(3)
-
-### 3. float32输入导致系统卡死
-在C++中使用float32输入会导致板端系统级卡死
-
-### 4. 模型转换后维度异常
-转换后输入维度变成 `[1, 224, 3, 224]` 而不是 `[1, 224, 224, 3]`
-
-## 已尝试的方案
-
-| 方案 | 结果 |
-|------|------|
-| uint8 RGB输入 | 不卡死，但结果不准确 |
-| float32 BGR + 均值减法 | 系统卡死 |
-| 在ONNX中添加预处理层再转换 | 维度错乱，结果仍不准确 |
-| 设置mean_values | 配置报错 |
-
-## 待测试方案
-
-### 方案A: 板端Python直接测试 (优先)
-在板端用Python测试不同输入格式，排除C++代码问题:
-1. uint8 RGB
-2. uint8 BGR  
-3. float32 BGR + 均值减法
-
-### 方案B: C++中使用uint8 BGR + 近似均值处理
-避免float32，使用整数运算近似均值减法
-
-### 方案C: INT8量化模型
-使用校准数据集进行量化，让量化过程学习预处理
-
 ## 关键文件
 
+### 源代码
 - `src/core/ai/NSFWDetector.cpp` - C++ RKNN推理代码（已修复）
+
+### 测试工具
 - `tools/test_rknn_pc_simulator.py` - PC端RKNN模拟器测试（推荐）
-- `tools/test_rknn_board_final.py` - 板端最终验证脚本
+- `tools/test_rknn_standalone.cpp` - 板端独立C++测试程序
+- `tools/test_rknn_board_final.py` - 板端Python验证脚本
 - `tools/test_cpp_preprocess.py` - C++预处理逻辑验证
 - `tools/generate_nwch_npy.py` - 生成NWCH格式测试数据
-- `tools/convert_nsfw_to_rk3566.py` - 模型转换脚本
+
+### 模型文件
 - `model/onnx/open_nsfw.onnx` - 原始ONNX模型
-- `model/rknn/open_nsfw_rk3566.rknn` - 当前RKNN模型
+- `model/rknn/open_nsfw_rk3566.rknn` - RKNN模型
+
+## 板端备份
+
+备份位置: `/media/kylin/EED4-7516/FlyKylinApp_backup_20251207_125903.tar.gz`
+
+恢复命令:
+```bash
+cd /home/kylin
+tar -xzvf /media/kylin/EED4-7516/FlyKylinApp_backup_20251207_125903.tar.gz
+```
 
 ## 常用命令
 
@@ -204,19 +132,20 @@ wsl -d Ubuntu1 -- sshpass -p 123456 scp /mnt/e/Project/FlyKylin/build/linux-arm6
 wsl -d Ubuntu1 -- sshpass -p 123456 scp /mnt/e/Project/FlyKylin/model/rknn/open_nsfw_rk3566.rknn kylin@192.168.100.2:/home/kylin/FlyKylinApp/bin/models/open_nsfw.rknn
 
 # 启动应用
-wsl -d Ubuntu1 -- sshpass -p 123456 ssh kylin@192.168.100.2 "cd /home/kylin/FlyKylinApp && ./run-flykylin.sh"
+wsl -d Ubuntu1 -- sshpass -p 123456 ssh kylin@192.168.100.2 "cd /home/kylin/FlyKylinApp && nohup ./run-flykylin.sh > /tmp/flykylin.log 2>&1 &"
 
 # 查看日志
 wsl -d Ubuntu1 -- sshpass -p 123456 ssh kylin@192.168.100.2 "tail -50 /tmp/flykylin.log"
 
-# PC端测试ONNX
-wsl -d Ubuntu1 -- bash -c "cd /mnt/e/Project/FlyKylin && python3 tools/test_rknn_pc.py"
+# PC端RKNN模拟器测试
+wsl -d Ubuntu1 -- bash -c "cd /mnt/e/Project/FlyKylin && python3 tools/test_rknn_pc_simulator.py"
 ```
 
-## 下一步行动
+## 调试历程总结
 
-1. 创建板端Python测试脚本，测试不同输入格式
-2. 将测试图片传输到板端
-3. 在板端运行测试，记录每种输入格式的输出
-4. 根据测试结果确定正确的输入格式
-5. 修改C++代码或重新转换模型
+1. **初始问题**: 板端RKNN检测结果不准确（NSFW图片检测为0.017，应该是0.96）
+2. **发现维度异常**: RKNN将NHWC转换为NWCH格式
+3. **测试不同格式**: 确认NWCH格式 + pass_through=0 + fmt=NHWC是正确组合
+4. **修复C++代码**: 更新预处理逻辑，添加HWC→WCH转换
+5. **独立测试验证**: 创建独立C++测试程序确认RKNN API调用正确
+6. **最终验证**: Qt应用成功检测NSFW图片，概率0.9575 ✅
