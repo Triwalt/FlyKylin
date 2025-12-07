@@ -271,8 +271,11 @@ bool NSFWDetector::isAvailable() const
 std::optional<float> NSFWDetector::predictNsfwProbability(const QString& imagePath) const
 {
 #if defined(FLYKYLIN_RKNN_COMPILED)
+    qInfo() << "[NSFWDetector] predictNsfwProbability called for" << imagePath;
+    
     RknnNsfwContext& ctx = rknnContext();
     if (!ctx.available || !ctx.ctx) {
+        qWarning() << "[NSFWDetector] RKNN context not available, available=" << ctx.available << "ctx=" << ctx.ctx;
         Q_UNUSED(imagePath);
         return std::nullopt;
     }
@@ -282,10 +285,21 @@ std::optional<float> NSFWDetector::predictNsfwProbability(const QString& imagePa
         qWarning() << "[NSFWDetector] Failed to load image" << imagePath;
         return std::nullopt;
     }
+    
+    qInfo() << "[NSFWDetector] Image loaded, size:" << image.width() << "x" << image.height();
 
-    // Preprocessing: scale to 224x224, convert to float32 RGB (0-255 range)
-    // The RKNN model has built-in preprocessing (RGB->BGR, mean subtraction)
-    QImage resized = image.scaled(224, 224, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    // Preprocessing for RKNN open_nsfw model:
+    // 1. Scale to 224x224
+    // 2. Convert RGB to BGR
+    // 3. Subtract mean [B=104, G=117, R=123]
+    // 4. Rearrange from HWC to WCH (RKNN expects NWCH layout for this model)
+    
+    constexpr int kInputSize = 224;
+    constexpr float kMeanB = 104.0f;
+    constexpr float kMeanG = 117.0f;
+    constexpr float kMeanR = 123.0f;
+    
+    QImage resized = image.scaled(kInputSize, kInputSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     if (resized.isNull()) {
         qWarning() << "[NSFWDetector] Failed to resize image" << imagePath;
         return std::nullopt;
@@ -298,35 +312,54 @@ std::optional<float> NSFWDetector::predictNsfwProbability(const QString& imagePa
     const int width = resized.width();
     const int height = resized.height();
 
-    // Use float32 input in RGB format (0-255 range)
-    // The RKNN model will handle RGB->BGR conversion and mean subtraction internally
+    // Prepare input data in NWCH format [1, W, C, H] = [1, 224, 3, 224]
+    // This is the correct layout discovered through debugging
     std::vector<float> inputData(static_cast<std::size_t>(width * height * 3));
 
-    for (int y = 0; y < height; ++y) {
-        const uchar* line = resized.constScanLine(y);
-        for (int x = 0; x < width; ++x) {
-            const int idx = (y * width + x) * 3;
-            inputData[static_cast<std::size_t>(idx + 0)] = static_cast<float>(line[x * 3 + 0]);
-            inputData[static_cast<std::size_t>(idx + 1)] = static_cast<float>(line[x * 3 + 1]);
-            inputData[static_cast<std::size_t>(idx + 2)] = static_cast<float>(line[x * 3 + 2]);
+    // Convert from HWC (QImage scanline order) to WCH
+    // Original: data[h][w][c] -> Target: data[w][c][h]
+    for (int h = 0; h < height; ++h) {
+        const uchar* line = resized.constScanLine(h);
+        for (int w = 0; w < width; ++w) {
+            // Read RGB from QImage
+            const uchar r = line[w * 3 + 0];
+            const uchar g = line[w * 3 + 1];
+            const uchar b = line[w * 3 + 2];
+            
+            // Convert to BGR and subtract mean
+            const float bVal = static_cast<float>(b) - kMeanB;
+            const float gVal = static_cast<float>(g) - kMeanG;
+            const float rVal = static_cast<float>(r) - kMeanR;
+            
+            // Store in WCH order: index = w * (C * H) + c * H + h
+            // For BGR: c=0 is B, c=1 is G, c=2 is R
+            const std::size_t baseIdx = static_cast<std::size_t>(w * 3 * height);
+            inputData[baseIdx + static_cast<std::size_t>(0 * height + h)] = bVal;  // B channel
+            inputData[baseIdx + static_cast<std::size_t>(1 * height + h)] = gVal;  // G channel
+            inputData[baseIdx + static_cast<std::size_t>(2 * height + h)] = rVal;  // R channel
         }
     }
 
+    qInfo() << "[NSFWDetector] Preparing RKNN input, data size:" << inputData.size();
+    
     rknn_input input;
     std::memset(&input, 0, sizeof(input));
     input.index = 0;
     input.pass_through = 0;  // Let RKNN handle format conversion
     input.type = RKNN_TENSOR_FLOAT32;
-    input.fmt = RKNN_TENSOR_NHWC;
+    input.fmt = RKNN_TENSOR_NHWC;  // Data format flag
     input.size = static_cast<uint32_t>(inputData.size() * sizeof(float));
     input.buf = inputData.data();
 
+    qInfo() << "[NSFWDetector] Calling rknn_inputs_set...";
     int ret = rknn_inputs_set(ctx.ctx, 1, &input);
     if (ret != RKNN_SUCC) {
         qWarning() << "[NSFWDetector] rknn_inputs_set failed" << ret;
         return std::nullopt;
     }
+    qInfo() << "[NSFWDetector] rknn_inputs_set OK";
 
+    qInfo() << "[NSFWDetector] Calling rknn_run...";
     ret = rknn_run(ctx.ctx, nullptr);
     if (ret != RKNN_SUCC) {
         qWarning() << "[NSFWDetector] rknn_run failed" << ret;
