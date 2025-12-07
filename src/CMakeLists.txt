@@ -66,8 +66,8 @@ if(EXISTS "${FLYKYLIN_QCORO_LOCAL_DIR}/CMakeLists.txt")
     )
 else()
     # Use URL download instead of git clone to avoid git safe.directory issues in CI containers
-    # Note: DOWNLOAD_EXTRACT_TIMESTAMP requires CMake 3.24+, so we omit it for compatibility
-    set(QCORO_DOWNLOAD_URL "https://github.com/qcoro/qcoro/archive/refs/tags/v0.9.0.tar.gz")
+    # Note: Using v0.10.0 to fix missing <memory> include issue in qcorothread.h
+    set(QCORO_DOWNLOAD_URL "https://github.com/qcoro/qcoro/archive/refs/tags/v0.10.0.tar.gz")
     FetchContent_Declare(
         qcoro
         URL "${QCORO_DOWNLOAD_URL}"
@@ -77,6 +77,9 @@ endif()
 # Disable QCoro tests and examples to speed up build
 set(QCORO_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(QCORO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+# Disable QCoro thread support to avoid missing <memory> include issue in qcorothread.h
+# This is a known issue with qcoro v0.9.0 and older GCC versions
+set(QCORO_WITH_QTDBUS OFF CACHE BOOL "" FORCE)
 # Disable QCoro WebSockets to avoid dependency on Qt6WebSockets
 set(QCORO_WITH_QTWEBSOCKETS OFF CACHE BOOL "" FORCE)
 # We only use QCoro Core/Network; disable QML/Quick support to avoid

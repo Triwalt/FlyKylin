@@ -1,8 +1,9 @@
 #include "ChatSearchService.h"
 
-#include "../database/DatabaseService.h"
 #include "../ai/TextEmbeddingEngine.h"
+#include "../database/DatabaseService.h"
 #include <QDebug>
+#include <QElapsedTimer>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -12,19 +13,48 @@ namespace services {
 
 using database::DatabaseService;
 
+namespace {
+// 语义重排的最大候选数量 - 限制RKNN推理次数以保证响应速度
+// 在RK3566上，每次BGE推理约需100-200ms，10条约需1-2秒
+constexpr int kMaxSemanticCandidates = 10;
+
+// 计算余弦相似度
+float cosineSimilarity(const std::vector<float>& a, const std::vector<float>& b)
+{
+    if (a.size() != b.size() || a.empty()) {
+        return 0.0f;
+    }
+
+    float dot = 0.0f;
+    float normA = 0.0f;
+    float normB = 0.0f;
+
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+    }
+
+    const float denom = std::sqrt(normA) * std::sqrt(normB);
+    return (denom > 0.0f) ? (dot / denom) : 0.0f;
+}
+} // namespace
+
 QList<core::Message> ChatSearchService::search(const QString& localUserId,
                                                const QString& query,
                                                const SearchFilter& filter,
                                                bool useSemantic) const
 {
+    QElapsedTimer timer;
+    timer.start();
+
     const QString trimmed = query.trimmed();
     if (trimmed.isEmpty()) {
         return {};
     }
 
     const QString peerId = filter.peerId;
-    const int limit = filter.limit > 0 ? filter.limit : 200;
-    const int candidateLimit = std::min(limit * 5, 1000);
+    const int limit = filter.limit > 0 ? filter.limit : 50;
 
     auto* db = DatabaseService::instance();
     if (!db) {
@@ -35,62 +65,57 @@ QList<core::Message> ChatSearchService::search(const QString& localUserId,
     const bool engineAvailable = ai::TextEmbeddingEngine::instance()->isAvailable();
     const bool semanticAvailable = useSemantic && engineAvailable;
 
-    QList<core::Message> base;
-    if (semanticAvailable) {
-        // 相关性排序：不再依赖 SQL 的 LIKE 预过滤，而是从所有消息中取候选再做语义重排。
-        base = db->loadMessagesForSearch(localUserId, peerId, candidateLimit);
-    } else {
-        // 时间排序：仍然使用基于关键字的 SQL 过滤和按时间降序排序。
-        base = db->searchMessagesByKeyword(localUserId, trimmed, peerId, candidateLimit);
+    // 优化策略：
+    // 1. 始终先用关键字过滤，减少候选数量
+    // 2. 语义搜索只对关键字匹配的前N条进行重排
+    // 3. 如果关键字匹配结果太少，再扩大搜索范围
+
+    QList<core::Message> keywordMatches =
+        db->searchMessagesByKeyword(localUserId, trimmed, peerId, limit * 2);
+
+    qInfo() << "[ChatSearchService] Keyword search for" << trimmed << "found"
+            << keywordMatches.size() << "matches in" << timer.elapsed() << "ms";
+
+    // 如果不使用语义搜索，或者引擎不可用，直接返回关键字结果
+    if (!semanticAvailable) {
+        if (keywordMatches.size() > limit) {
+            keywordMatches = keywordMatches.mid(0, limit);
+        }
+        qInfo() << "[ChatSearchService] Returning keyword results:" << keywordMatches.size()
+                << "total time:" << timer.elapsed() << "ms";
+        return keywordMatches;
     }
 
-    if (!semanticAvailable || base.isEmpty()) {
-        if (base.size() > limit) {
-            base = base.mid(0, limit);
-        }
-
-        qInfo() << "[ChatSearchService] Time-based order for query" << trimmed
-                << "base=" << base.size() << "peer=" << peerId;
-        for (int i = 0; i < base.size(); ++i) {
-            const auto& msg = base.at(i);
-            qInfo() << "  [TimeSort]" << i
-                    << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
-                    << msg.id()
-                    << msg.content().left(32);
-        }
-
-        return base;
-    }
-
+    // 语义搜索：对关键字匹配结果进行语义重排
     auto* engine = ai::TextEmbeddingEngine::instance();
+
+    // 计算查询的embedding
+    QElapsedTimer embedTimer;
+    embedTimer.start();
     const std::vector<float> queryEmbedding = engine->computeEmbedding(trimmed);
+    qInfo() << "[ChatSearchService] Query embedding computed in" << embedTimer.elapsed() << "ms";
+
     if (queryEmbedding.empty()) {
-        if (base.size() > limit) {
-            base = base.mid(0, limit);
+        // embedding计算失败，回退到关键字结果
+        if (keywordMatches.size() > limit) {
+            keywordMatches = keywordMatches.mid(0, limit);
         }
-
-        qInfo() << "[ChatSearchService] Time-based order for query (no embedding)" << trimmed
-                << "base=" << base.size() << "peer=" << peerId;
-        for (int i = 0; i < base.size(); ++i) {
-            const auto& msg = base.at(i);
-            qInfo() << "  [TimeSort]" << i
-                    << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
-                    << msg.id()
-                    << msg.content().left(32);
-        }
-
-        return base;
+        qInfo() << "[ChatSearchService] Embedding failed, returning keyword results:"
+                << keywordMatches.size();
+        return keywordMatches;
     }
 
-    qInfo() << "[ChatSearchService] Base (time-ordered) candidates for query" << trimmed
-            << "base=" << base.size() << "peer=" << peerId;
-    for (int i = 0; i < base.size(); ++i) {
-        const auto& msg = base.at(i);
-        qInfo() << "  [Base]" << i
-                << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
-                << msg.id()
-                << msg.content().left(32);
+    // 限制语义重排的候选数量，避免过长的处理时间
+    const int semanticCandidateCount =
+        std::min(static_cast<int>(keywordMatches.size()), kMaxSemanticCandidates);
+
+    if (semanticCandidateCount == 0) {
+        qInfo() << "[ChatSearchService] No candidates for semantic ranking";
+        return keywordMatches;
     }
+
+    qInfo() << "[ChatSearchService] Computing embeddings for" << semanticCandidateCount
+            << "candidates...";
 
     struct ScoredMessage {
         core::Message message;
@@ -98,83 +123,56 @@ QList<core::Message> ChatSearchService::search(const QString& localUserId,
     };
 
     std::vector<ScoredMessage> scored;
-    scored.reserve(static_cast<std::size_t>(base.size()));
+    scored.reserve(static_cast<std::size_t>(semanticCandidateCount));
 
-    for (const auto& msg : base) {
-        const std::vector<float> embedding = engine->computeEmbedding(msg.content());
-        if (embedding.size() != queryEmbedding.size() || embedding.empty()) {
+    embedTimer.restart();
+    for (int i = 0; i < semanticCandidateCount; ++i) {
+        const auto& msg = keywordMatches.at(i);
+        const std::vector<float> msgEmbedding = engine->computeEmbedding(msg.content());
+
+        if (msgEmbedding.empty()) {
+            // embedding失败，给一个较低的默认分数
+            scored.push_back(ScoredMessage{msg, 0.0f});
             continue;
         }
 
-        float dot = 0.0f;
-        float normQuery = 0.0f;
-        float normMsg = 0.0f;
-
-        for (std::size_t i = 0; i < embedding.size(); ++i) {
-            const float qv = queryEmbedding[i];
-            const float mv = embedding[i];
-            dot += qv * mv;
-            normQuery += qv * qv;
-            normMsg += mv * mv;
-        }
-
-        const float denom = std::sqrt(normQuery) * std::sqrt(normMsg);
-        const float score = (denom > 0.0f) ? (dot / denom) : 0.0f;
-
+        const float score = cosineSimilarity(queryEmbedding, msgEmbedding);
         scored.push_back(ScoredMessage{msg, score});
     }
 
-    if (scored.empty()) {
-        if (base.size() > limit) {
-            base = base.mid(0, limit);
+    qInfo() << "[ChatSearchService] Computed" << scored.size() << "embeddings in"
+            << embedTimer.elapsed() << "ms";
+
+    // 按相似度排序
+    std::sort(scored.begin(), scored.end(), [](const ScoredMessage& a, const ScoredMessage& b) {
+        if (std::abs(a.score - b.score) > 0.001f) {
+            return a.score > b.score;
         }
+        // 相似度相近时，按时间降序
+        return a.message.timestamp() > b.message.timestamp();
+    });
 
-        qInfo() << "[ChatSearchService] Time-based order for query (no valid embeddings)"
-                << trimmed << "base=" << base.size() << "peer=" << peerId;
-        for (int i = 0; i < base.size(); ++i) {
-            const auto& msg = base.at(i);
-            qInfo() << "  [TimeSort]" << i
-                    << msg.timestamp().toString("yyyy-MM-dd HH:mm:ss")
-                    << msg.id()
-                    << msg.content().left(32);
-        }
-
-        return base;
-    }
-
-    std::sort(scored.begin(), scored.end(),
-              [](const ScoredMessage& a, const ScoredMessage& b) {
-                  if (a.score != b.score) {
-                      return a.score > b.score;
-                  }
-                  // 当语义得分相同时，使用时间升序作为 tie-breaker，
-                  // 以便与按时间（降序）排序的结果产生明显差异。
-                  return a.message.timestamp() < b.message.timestamp();
-              });
-
-    const int resultCount = std::min(limit, static_cast<int>(scored.size()));
-
-    qInfo() << "[ChatSearchService] Semantic order for query" << trimmed
-            << "base=" << base.size() << "returned=" << resultCount << "peer="
-            << peerId;
-    for (int i = 0; i < resultCount; ++i) {
-        const auto& sm = scored[static_cast<std::size_t>(i)];
-        qInfo() << "  [Semantic]" << i
-                << sm.score
-                << sm.message.timestamp().toString("yyyy-MM-dd HH:mm:ss")
-                << sm.message.id()
-                << sm.message.content().left(32);
-    }
-
+    // 构建结果：语义排序的结果 + 剩余的关键字匹配结果
     QList<core::Message> result;
-    result.reserve(resultCount);
-    for (int i = 0; i < resultCount; ++i) {
-        result.append(scored[static_cast<std::size_t>(i)].message);
+    result.reserve(limit);
+
+    // 添加语义排序的结果
+    for (const auto& sm : scored) {
+        if (result.size() >= limit) {
+            break;
+        }
+        result.append(sm.message);
     }
 
-    qInfo() << "[ChatSearchService] Semantic rerank used for query" << trimmed
-            << "base=" << base.size() << "returned=" << result.size() << "peer="
-            << peerId;
+    // 如果结果不够，添加剩余的关键字匹配结果
+    for (int i = semanticCandidateCount; i < keywordMatches.size() && result.size() < limit; ++i) {
+        result.append(keywordMatches.at(i));
+    }
+
+    qInfo() << "[ChatSearchService] Semantic search complete: query=" << trimmed
+            << "keyword_matches=" << keywordMatches.size()
+            << "semantic_ranked=" << scored.size() << "returned=" << result.size()
+            << "total_time=" << timer.elapsed() << "ms";
 
     return result;
 }

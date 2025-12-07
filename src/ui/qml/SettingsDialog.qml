@@ -348,7 +348,7 @@ Item {
                                 spacing: Style.spacingSmall
 
                                 Image {
-                                    source: "../resources/app_icon.svg"
+                                    source: "../resources/app_icon.png"
                                     sourceSize.width: 48
                                     sourceSize.height: 48
                                 }

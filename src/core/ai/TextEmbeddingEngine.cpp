@@ -19,6 +19,16 @@
 #  endif
 #endif
 
+#if defined(RK3566_PLATFORM) && defined(FLYKYLIN_ENABLE_RKNN)
+#  if __has_include(<rknn_api.h>)
+#    include <rknn_api.h>
+#    include <cstring>
+#    define FLYKYLIN_RKNN_EMBEDDING_COMPILED 1
+#  else
+#    pragma message("rknn_api.h not found, building TextEmbeddingEngine without RKNN backend")
+#  endif
+#endif
+
 namespace flykylin {
 namespace ai {
 
@@ -255,6 +265,255 @@ OnnxEmbeddingContext& onnxContext()
 }
 #endif
 
+// ============================================================================
+// RKNN Backend for RK3566 Platform
+// ============================================================================
+#ifdef FLYKYLIN_RKNN_EMBEDDING_COMPILED
+
+class RknnBgeTokenizer {
+public:
+    RknnBgeTokenizer()
+        : m_loaded(false)
+        , m_clsId(-1)
+        , m_sepId(-1)
+        , m_padId(-1)
+        , m_unkId(-1)
+    {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QDir dir(appDir);
+        
+        // Try multiple vocab file locations
+        QStringList vocabCandidates;
+        vocabCandidates << dir.filePath("models/text-embedding-vocab.txt")
+                        << dir.filePath("models/vocab.txt")
+                        << QStringLiteral("/home/kylin/FlyKylinApp/bin/models/vocab.txt");
+        
+        QString vocabPath;
+        for (const QString& candidate : vocabCandidates) {
+            if (QFile::exists(candidate)) {
+                vocabPath = candidate;
+                break;
+            }
+        }
+        
+        if (vocabPath.isEmpty()) {
+            qWarning() << "[TextEmbeddingEngine] RKNN BGE vocab not found";
+            return;
+        }
+
+        QFile file(vocabPath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            qWarning() << "[TextEmbeddingEngine] Failed to open vocab file" << vocabPath;
+            return;
+        }
+
+        QTextStream in(&file);
+        int index = 0;
+        while (!in.atEnd()) {
+            const QString line = in.readLine().trimmed();
+            if (line.isEmpty()) {
+                continue;
+            }
+
+            m_tokenToId.insert(line, index);
+            if (line == QLatin1String("[CLS]")) {
+                m_clsId = index;
+            } else if (line == QLatin1String("[SEP]")) {
+                m_sepId = index;
+            } else if (line == QLatin1String("[PAD]")) {
+                m_padId = index;
+            } else if (line == QLatin1String("[UNK]")) {
+                m_unkId = index;
+            }
+
+            ++index;
+        }
+
+        if (m_clsId < 0 || m_sepId < 0 || m_padId < 0 || m_unkId < 0) {
+            qWarning() << "[TextEmbeddingEngine] RKNN BGE vocab missing special tokens";
+            return;
+        }
+
+        m_loaded = true;
+        qInfo() << "[TextEmbeddingEngine] RKNN BGE tokenizer loaded from" << vocabPath
+                << "vocab size:" << m_tokenToId.size();
+    }
+
+    bool isLoaded() const { return m_loaded; }
+
+    void encode(const QString& text,
+                std::vector<int64_t>& inputIds,
+                std::vector<int64_t>& attentionMask,
+                int maxLength) const
+    {
+        inputIds.clear();
+        attentionMask.clear();
+
+        if (!m_loaded || maxLength <= 0) {
+            return;
+        }
+
+        std::vector<int64_t> tokens;
+        tokens.reserve(static_cast<std::size_t>(maxLength));
+        tokens.push_back(m_clsId);
+
+        const int textLen = text.size();
+        for (int i = 0; i < textLen; ++i) {
+            const QChar ch = text.at(i);
+            if (ch.isSpace()) {
+                continue;
+            }
+
+            const QString tokenStr(ch);
+            const int id = m_tokenToId.value(tokenStr, m_unkId);
+            tokens.push_back(id);
+
+            if (static_cast<int>(tokens.size()) >= maxLength - 1) {
+                break;
+            }
+        }
+
+        if (static_cast<int>(tokens.size()) < maxLength) {
+            tokens.push_back(m_sepId);
+        }
+
+        if (static_cast<int>(tokens.size()) > maxLength) {
+            tokens.resize(static_cast<std::size_t>(maxLength));
+        }
+
+        inputIds.assign(tokens.begin(), tokens.end());
+        attentionMask.assign(inputIds.size(), 1);
+
+        if (static_cast<int>(inputIds.size()) < maxLength) {
+            inputIds.resize(static_cast<std::size_t>(maxLength), m_padId);
+            attentionMask.resize(static_cast<std::size_t>(maxLength), 0);
+        }
+    }
+
+private:
+    bool m_loaded;
+    int m_clsId;
+    int m_sepId;
+    int m_padId;
+    int m_unkId;
+    QHash<QString, int> m_tokenToId;
+};
+
+RknnBgeTokenizer& rknnBgeTokenizer()
+{
+    static RknnBgeTokenizer tokenizer;
+    return tokenizer;
+}
+
+class RknnEmbeddingContext {
+public:
+    static constexpr int kMaxSeqLen = 128;
+    static constexpr int kEmbeddingDim = 512;
+
+    RknnEmbeddingContext()
+        : available(false)
+        , ctx(0)
+    {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QDir dir(appDir);
+
+        QStringList candidates;
+        candidates << dir.filePath("models/bge-small-zh-v1.5.rknn")
+                   << dir.filePath("models/text-embedding.rknn")
+                   << QStringLiteral("/home/kylin/FlyKylinApp/bin/models/bge-small-zh-v1.5.rknn");
+
+        QString modelPath;
+        for (const QString& c : candidates) {
+            if (QFile::exists(c)) {
+                modelPath = c;
+                break;
+            }
+        }
+
+        if (modelPath.isEmpty()) {
+            qWarning() << "[TextEmbeddingEngine] RKNN BGE model not found";
+            return;
+        }
+
+        QFile f(modelPath);
+        if (!f.open(QIODevice::ReadOnly)) {
+            qWarning() << "[TextEmbeddingEngine] Failed to open RKNN model" << modelPath;
+            return;
+        }
+
+        QByteArray data = f.readAll();
+        if (data.isEmpty()) {
+            qWarning() << "[TextEmbeddingEngine] Empty RKNN model file";
+            return;
+        }
+
+        rknn_context localCtx = 0;
+        int ret = rknn_init(&localCtx, data.data(), static_cast<uint32_t>(data.size()), 0, nullptr);
+        if (ret != RKNN_SUCC || !localCtx) {
+            qWarning() << "[TextEmbeddingEngine] rknn_init failed" << ret;
+            return;
+        }
+
+        rknn_input_output_num ioNum;
+        std::memset(&ioNum, 0, sizeof(ioNum));
+        ret = rknn_query(localCtx, RKNN_QUERY_IN_OUT_NUM, &ioNum, sizeof(ioNum));
+        if (ret != RKNN_SUCC) {
+            qWarning() << "[TextEmbeddingEngine] rknn_query in/out num failed" << ret;
+            rknn_destroy(localCtx);
+            return;
+        }
+
+        qInfo() << "[TextEmbeddingEngine] RKNN BGE model: inputs=" << ioNum.n_input
+                << "outputs=" << ioNum.n_output;
+
+        // Query input attributes
+        for (uint32_t i = 0; i < ioNum.n_input && i < 3; ++i) {
+            rknn_tensor_attr attr;
+            std::memset(&attr, 0, sizeof(attr));
+            attr.index = i;
+            ret = rknn_query(localCtx, RKNN_QUERY_INPUT_ATTR, &attr, sizeof(attr));
+            if (ret == RKNN_SUCC) {
+                qInfo() << "[TextEmbeddingEngine] Input" << i << ":" << attr.name
+                        << "dims:" << attr.dims[0] << attr.dims[1] << attr.dims[2] << attr.dims[3];
+            }
+        }
+
+        // Query output attributes
+        rknn_tensor_attr outputAttr;
+        std::memset(&outputAttr, 0, sizeof(outputAttr));
+        outputAttr.index = 0;
+        ret = rknn_query(localCtx, RKNN_QUERY_OUTPUT_ATTR, &outputAttr, sizeof(outputAttr));
+        if (ret == RKNN_SUCC) {
+            qInfo() << "[TextEmbeddingEngine] Output 0:" << outputAttr.name
+                    << "dims:" << outputAttr.dims[0] << outputAttr.dims[1]
+                    << "n_elems:" << outputAttr.n_elems;
+        }
+
+        ctx = localCtx;
+        available = true;
+        qInfo() << "[TextEmbeddingEngine] RKNN backend initialized, model=" << modelPath;
+    }
+
+    ~RknnEmbeddingContext()
+    {
+        if (ctx) {
+            rknn_destroy(ctx);
+            ctx = 0;
+        }
+    }
+
+    bool available;
+    rknn_context ctx;
+};
+
+RknnEmbeddingContext& rknnEmbeddingContext()
+{
+    static RknnEmbeddingContext ctx;
+    return ctx;
+}
+
+#endif // FLYKYLIN_RKNN_EMBEDDING_COMPILED
+
 } // namespace
 
 TextEmbeddingEngine* TextEmbeddingEngine::instance()
@@ -265,7 +524,12 @@ TextEmbeddingEngine* TextEmbeddingEngine::instance()
 
 TextEmbeddingEngine::TextEmbeddingEngine()
 {
-#ifdef FLYKYLIN_ONNXRUNTIME_COMPILED
+#if defined(FLYKYLIN_RKNN_EMBEDDING_COMPILED)
+    RknnEmbeddingContext& ctx = rknnEmbeddingContext();
+    if (!ctx.available) {
+        qInfo() << "[TextEmbeddingEngine] RKNN backend not available, semantic search disabled";
+    }
+#elif defined(FLYKYLIN_ONNXRUNTIME_COMPILED)
     OnnxEmbeddingContext& ctx = onnxContext();
     if (!ctx.available) {
         qInfo() << "[TextEmbeddingEngine] ONNX backend not available, semantic search disabled";
@@ -277,7 +541,9 @@ TextEmbeddingEngine::TextEmbeddingEngine()
 
 bool TextEmbeddingEngine::isAvailable() const
 {
-#ifdef FLYKYLIN_ONNXRUNTIME_COMPILED
+#if defined(FLYKYLIN_RKNN_EMBEDDING_COMPILED)
+    return rknnEmbeddingContext().available;
+#elif defined(FLYKYLIN_ONNXRUNTIME_COMPILED)
     return onnxContext().available;
 #else
     return false;
@@ -286,7 +552,118 @@ bool TextEmbeddingEngine::isAvailable() const
 
 std::vector<float> TextEmbeddingEngine::computeEmbedding(const QString& text) const
 {
-#ifdef FLYKYLIN_ONNXRUNTIME_COMPILED
+#if defined(FLYKYLIN_RKNN_EMBEDDING_COMPILED)
+    RknnEmbeddingContext& ctx = rknnEmbeddingContext();
+    if (!ctx.available || !ctx.ctx) {
+        Q_UNUSED(text);
+        return {};
+    }
+
+    if (text.isEmpty()) {
+        return {};
+    }
+
+    RknnBgeTokenizer& tokenizer = rknnBgeTokenizer();
+    if (!tokenizer.isLoaded()) {
+        qWarning() << "[TextEmbeddingEngine] RKNN BGE tokenizer not loaded";
+        return {};
+    }
+
+    // Tokenize input text
+    std::vector<int64_t> inputIds;
+    std::vector<int64_t> attentionMask;
+    tokenizer.encode(text, inputIds, attentionMask, RknnEmbeddingContext::kMaxSeqLen);
+    if (inputIds.empty()) {
+        return {};
+    }
+
+    std::vector<int64_t> tokenTypeIds(inputIds.size(), 0);
+
+    // Prepare RKNN inputs (3 inputs: input_ids, attention_mask, token_type_ids)
+    rknn_input inputs[3];
+    std::memset(inputs, 0, sizeof(inputs));
+
+    inputs[0].index = 0;
+    inputs[0].pass_through = 0;
+    inputs[0].type = RKNN_TENSOR_INT64;
+    inputs[0].fmt = RKNN_TENSOR_UNDEFINED;
+    inputs[0].size = static_cast<uint32_t>(inputIds.size() * sizeof(int64_t));
+    inputs[0].buf = inputIds.data();
+
+    inputs[1].index = 1;
+    inputs[1].pass_through = 0;
+    inputs[1].type = RKNN_TENSOR_INT64;
+    inputs[1].fmt = RKNN_TENSOR_UNDEFINED;
+    inputs[1].size = static_cast<uint32_t>(attentionMask.size() * sizeof(int64_t));
+    inputs[1].buf = attentionMask.data();
+
+    inputs[2].index = 2;
+    inputs[2].pass_through = 0;
+    inputs[2].type = RKNN_TENSOR_INT64;
+    inputs[2].fmt = RKNN_TENSOR_UNDEFINED;
+    inputs[2].size = static_cast<uint32_t>(tokenTypeIds.size() * sizeof(int64_t));
+    inputs[2].buf = tokenTypeIds.data();
+
+    int ret = rknn_inputs_set(ctx.ctx, 3, inputs);
+    if (ret != RKNN_SUCC) {
+        qWarning() << "[TextEmbeddingEngine] rknn_inputs_set failed" << ret;
+        return {};
+    }
+
+    ret = rknn_run(ctx.ctx, nullptr);
+    if (ret != RKNN_SUCC) {
+        qWarning() << "[TextEmbeddingEngine] rknn_run failed" << ret;
+        return {};
+    }
+
+    // Get output - BGE model has two outputs:
+    // Output 0 (tanh/pooler_output): [1, 512] - sentence embedding
+    // Output 1 (last_hidden_state): [1, 128, 512] - all token hidden states
+    // We want output 0 (pooler_output) for sentence embedding
+    rknn_output outputs[2];
+    std::memset(outputs, 0, sizeof(outputs));
+    outputs[0].want_float = 1;
+    outputs[0].is_prealloc = 0;
+    outputs[0].index = 0;  // pooler_output (tanh)
+    outputs[1].want_float = 1;
+    outputs[1].is_prealloc = 0;
+    outputs[1].index = 1;  // last_hidden_state
+
+    ret = rknn_outputs_get(ctx.ctx, 2, outputs, nullptr);
+    if (ret != RKNN_SUCC) {
+        qWarning() << "[TextEmbeddingEngine] rknn_outputs_get failed" << ret;
+        return {};
+    }
+
+    // Try to use pooler_output (output 0) first
+    float* outData = nullptr;
+    int outputIdx = 0;
+    
+    if (outputs[0].buf && outputs[0].size >= RknnEmbeddingContext::kEmbeddingDim * sizeof(float)) {
+        // Use pooler_output [1, 512]
+        outData = static_cast<float*>(outputs[0].buf);
+        outputIdx = 0;
+    } else if (outputs[1].buf) {
+        // Fallback: use first token (CLS) from last_hidden_state [1, 128, 512]
+        // The CLS token embedding is at position 0
+        outData = static_cast<float*>(outputs[1].buf);
+        outputIdx = 1;
+        qInfo() << "[TextEmbeddingEngine] Using CLS token from last_hidden_state";
+    } else {
+        qWarning() << "[TextEmbeddingEngine] No valid output buffer";
+        rknn_outputs_release(ctx.ctx, 2, outputs);
+        return {};
+    }
+
+    std::vector<float> result(RknnEmbeddingContext::kEmbeddingDim);
+    for (int i = 0; i < RknnEmbeddingContext::kEmbeddingDim; ++i) {
+        result[static_cast<std::size_t>(i)] = outData[i];
+    }
+
+    rknn_outputs_release(ctx.ctx, 2, outputs);
+    return result;
+
+#elif defined(FLYKYLIN_ONNXRUNTIME_COMPILED)
     OnnxEmbeddingContext& ctx = onnxContext();
     if (!ctx.available || !ctx.session || !ctx.env) {
         Q_UNUSED(text);
@@ -457,7 +834,9 @@ std::vector<float> TextEmbeddingEngine::computeEmbedding(const QString& text) co
 
 int TextEmbeddingEngine::embeddingDim() const
 {
-#ifdef FLYKYLIN_ONNXRUNTIME_COMPILED
+#if defined(FLYKYLIN_RKNN_EMBEDDING_COMPILED)
+    return RknnEmbeddingContext::kEmbeddingDim;
+#elif defined(FLYKYLIN_ONNXRUNTIME_COMPILED)
     return onnxContext().dim;
 #else
     return 0;
@@ -466,7 +845,9 @@ int TextEmbeddingEngine::embeddingDim() const
 
 QString TextEmbeddingEngine::backendName() const
 {
-#ifdef FLYKYLIN_ONNXRUNTIME_COMPILED
+#if defined(FLYKYLIN_RKNN_EMBEDDING_COMPILED)
+    return QStringLiteral("rknn");
+#elif defined(FLYKYLIN_ONNXRUNTIME_COMPILED)
     return QStringLiteral("onnxruntime");
 #else
     return QStringLiteral("unavailable");

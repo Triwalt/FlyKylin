@@ -314,7 +314,7 @@ ApplicationWindow {
                             Image {
                                 anchors.centerIn: parent
                                 width: parent.width * 0.7
-                                source: "../resources/app_icon.svg"
+                                source: "../resources/app_icon.png"
                                 fillMode: Image.PreserveAspectFit
                             }
                         }

@@ -1,6 +1,10 @@
-# RKNN NSFW检测调试总结
+# RKNN AI加速调试总结
 
-## 最终状态 (2025-12-07) - 问题已完全解决！✅
+## 最终状态 (2025-12-07) - NSFW检测和语义搜索均已实现！✅
+
+---
+
+## 一、NSFW图像检测 - 已完成 ✅
 
 ### 实际应用验证结果
 
@@ -149,3 +153,126 @@ wsl -d Ubuntu1 -- bash -c "cd /mnt/e/Project/FlyKylin && python3 tools/test_rknn
 4. **修复C++代码**: 更新预处理逻辑，添加HWC→WCH转换
 5. **独立测试验证**: 创建独立C++测试程序确认RKNN API调用正确
 6. **最终验证**: Qt应用成功检测NSFW图片，概率0.9575 ✅
+
+
+---
+
+## 二、BGE文本嵌入（语义搜索）- 已完成 ✅
+
+### 实现概述
+
+为RK3566板端添加了BGE-small-zh-v1.5文本嵌入模型的RKNN加速支持，用于聊天记录的语义搜索排序。
+
+### 模型信息
+
+| 项目 | 值 |
+|------|-----|
+| 模型名称 | bge-small-zh-v1.5 |
+| 原始格式 | ONNX |
+| RKNN格式 | bge-small-zh-v1.5.rknn |
+| 模型大小 | ~47MB |
+| 输入 | input_ids, attention_mask, token_type_ids [1, 128] |
+| 输出 | pooler_output [1, 512], last_hidden_state [1, 128, 512] |
+| 嵌入维度 | 512 |
+| 最大序列长度 | 128 |
+
+### 板端测试结果
+
+```
+=== Testing BGE RKNN Model on Board ===
+Model: /home/kylin/FlyKylinApp/bin/models/bge-small-zh-v1.5.rknn
+Vocab: /home/kylin/FlyKylinApp/bin/models/vocab.txt
+Loaded vocab: 21127 tokens
+RKNN initialized successfully!
+
+Text: '你好'
+  Output shape: (1, 128, 512)
+  Embedding norm: 100.5251
+
+Text: '今天天气怎么样'
+  Output shape: (1, 128, 512)
+  Embedding norm: 109.9130
+
+=== Similarity Matrix ===
+  '你好' vs '今天天气怎么样': 0.4668
+  '你好' vs '我想吃火锅': 0.4341
+  '今天天气怎么样' vs '我想吃火锅': 0.4085
+```
+
+### 关键文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/core/ai/TextEmbeddingEngine.cpp` | 文本嵌入引擎，支持ONNX和RKNN后端 |
+| `src/core/services/ChatSearchService.cpp` | 聊天搜索服务，调用TextEmbeddingEngine |
+| `tools/convert_bge_to_rk3566.py` | BGE模型RKNN转换脚本 |
+| `tools/test_bge_rknn_board.py` | 板端BGE RKNN测试脚本 |
+| `scripts/deploy-bge-model.sh` | BGE模型部署脚本 |
+| `model/rknn/bge-small-zh-v1.5.rknn` | RKNN格式BGE模型 |
+| `model/onnx/vocab.txt` | BGE词表文件 |
+
+### RKNN API调用参数
+
+```cpp
+// 输入设置
+rknn_input inputs[3];
+inputs[0].index = 0;  // input_ids
+inputs[0].pass_through = 0;
+inputs[0].type = RKNN_TENSOR_INT64;
+inputs[0].fmt = RKNN_TENSOR_UNDEFINED;
+
+inputs[1].index = 1;  // attention_mask
+inputs[2].index = 2;  // token_type_ids
+
+// 输出获取
+rknn_output outputs[2];
+outputs[0].index = 0;  // pooler_output [1, 512]
+outputs[1].index = 1;  // last_hidden_state [1, 128, 512]
+outputs[0].want_float = 1;
+outputs[1].want_float = 1;
+```
+
+### 注意事项
+
+1. **模型输出**: BGE RKNN模型有两个输出，优先使用pooler_output（index=0），如果不可用则使用last_hidden_state的第一个token（CLS）
+2. **词表文件**: 需要部署vocab.txt到板端models目录
+3. **内存占用**: BGE模型较大（~47MB），加载时需要足够内存
+4. **性能**: Transformer模型在NPU上的加速效果可能有限，如果性能不佳可考虑使用关键字搜索作为fallback
+
+### 部署命令
+
+```bash
+# 转换模型（在WSL中运行）
+python3 tools/convert_bge_to_rk3566.py
+
+# 部署模型到板端
+sshpass -p 123456 scp model/rknn/bge-small-zh-v1.5.rknn kylin@192.168.100.2:/home/kylin/FlyKylinApp/bin/models/
+sshpass -p 123456 scp model/onnx/vocab.txt kylin@192.168.100.2:/home/kylin/FlyKylinApp/bin/models/
+
+# 测试板端推理
+sshpass -p 123456 ssh kylin@192.168.100.2 'python3 /home/kylin/test_bge_rknn_board.py'
+```
+
+---
+
+## 三、编译配置
+
+### CMake宏定义
+
+| 宏 | 说明 |
+|----|------|
+| `RK3566_PLATFORM` | RK3566平台标识 |
+| `FLYKYLIN_ENABLE_RKNN` | 启用RKNN支持 |
+| `FLYKYLIN_ENABLE_ONNXRUNTIME` | 启用ONNX Runtime支持 |
+
+### 编译后的符号
+
+```bash
+# 检查RKNN符号
+nm build/linux-arm64-rk3566-cross/bin/FlyKylin | grep -i rknn
+
+# 应该看到:
+# RknnNsfwContext - NSFW检测
+# RknnEmbeddingContext - 文本嵌入
+# RknnBgeTokenizer - BGE分词器
+```
