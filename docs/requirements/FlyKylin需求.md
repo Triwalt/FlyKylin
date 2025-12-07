@@ -2,7 +2,8 @@
 
 **版本**: 1.0  
 **日期**: 2024-11-18  
-**状态**: Sprint 0 进行中
+**最后更新**: 2024-12-07  
+**状态**: Sprint 6 已完成
 
 ## 📋 项目定位
 
@@ -94,74 +95,66 @@ FlyKylin/
 
 ## 📊 Sprint规划
 
-### Sprint 0: 环境验证（1周）⏳
+### Sprint 0: 环境验证（1周）✅ 已完成
 
 **目标**: 验证Windows开发环境，完成首次编译
 
 **任务**:
 - [x] 定位Qt 6.9.3和ONNX模型
-- [ ] 下载ONNX Runtime C++ API
-- [ ] 安装Protobuf
-- [ ] 编译Hello World Qt程序
-- [ ] 测试ONNX Runtime C++ API
+- [x] 下载ONNX Runtime C++ API
+- [x] 安装Protobuf
+- [x] 编译Hello World Qt程序
+- [x] 测试ONNX Runtime C++ API
 
-**DoD**:
-- Windows环境编译成功
-- ONNX Runtime能加载NSFW模型
-- 输出FlyKylin.exe可执行文件
+**DoD**: ✅ 全部达成
 
-### Sprint 1: P2P通信基础（2周）
+### Sprint 1: P2P通信基础（2周）✅ 已完成
 
 **核心功能**:
-- UDP广播节点发现
-- TCP长连接
-- Protobuf消息协议
-- 基础UI（用户列表）
+- ✅ UDP广播节点发现
+- ✅ TCP长连接
+- ✅ Protobuf消息协议
+- ✅ 基础UI（用户列表）
 
-**不实现**:
-- ❌ 加密
-- ❌ 认证
-- ❌ mDNS
-
-### Sprint 2: 用户与分组（2周）
+### Sprint 2: 用户与分组（2周）✅ 已完成
 
 **核心功能**:
-- 用户信息管理（本地配置）
-- 分组管理
-- 好友列表UI
-- 聊天窗口
+- ✅ 用户信息管理（本地配置）
+- ✅ 分组管理
+- ✅ 好友列表UI
+- ✅ 聊天窗口
 
-### Sprint 3: 群聊与文件（2周）
-
-**核心功能**:
-- 群聊（P2P多发）
-- 文件传输（TCP）
-- 接收确认
-- 文件管理UI
-
-### Sprint 4: 跨平台（2周）
+### Sprint 3: 群聊与文件（2周）✅ 已完成
 
 **核心功能**:
-- RK3566首次编译
-- 平台特定UI适配
-- 截图功能
-- 表情包
+- ✅ 群聊（P2P多发）
+- ✅ 文件传输（TCP）
+- ✅ 接收确认
+- ✅ 文件管理UI
 
-### Sprint 5: AI-NSFW检测（2周）
-
-**核心功能**:
-- AIEngine抽象层
-- Windows DirectML实现
-- RK3566 NPU实现
-- 双端NSFW检测
-
-### Sprint 6: AI-语义搜索（2周）
+### Sprint 4: 跨平台（2周）✅ 已完成
 
 **核心功能**:
-- BGE模型集成
-- 消息向量化
-- 语义搜索API
-- 搜索UI
+- ✅ RK3566首次编译
+- ✅ 平台特定UI适配
+- ✅ QML界面迁移
+- ✅ Qt5/Qt6兼容
+
+### Sprint 5: AI-NSFW检测（2周）✅ 已完成
+
+**核心功能**:
+- ✅ AIEngine抽象层
+- ✅ ONNX Runtime实现（Windows）
+- ✅ RKNN NPU实现（RK3566）
+- ✅ NSFW检测集成
+
+### Sprint 6: AI-语义搜索（2周）✅ 已完成
+
+**核心功能**:
+- ✅ BGE模型集成（bge-small-zh-v1.5）
+- ✅ 消息向量化
+- ✅ 语义搜索API
+- ✅ ChatSearchService实现
 
 ## 🎯 当前环境状态
 
